@@ -6,4 +6,5 @@ Arduino projects, libraries and utilities. Read the various header files for det
 
 Libraries providing support for various displays.
 
-* ssd1322 provides some rudimentary functions for SSD1322 OLED displays. The intent is to use I2C from a Raspberry Pi to command what will be displayed. The Arduino uses the low level driver to facilitate the display.
+* ssd1322 provides some rudimentary functions for SSD1322 OLED displays. The intent is to use I2C from a Raspberry Pi to command what will be displayed. The Arduino uses the low level driver to facilitate the display. Early tests suggest that there is not enough memory to have an array capable of storing an entire screen worth of data (8192 bytes) so the 4bpp image used as a test for the Raspberry Pi driver doesn't work. It is therefore intended to modify the driver t
+o accept a maximum of a full line at a time via I2C and display that. The image can then be built up by sending the data from the Raspberry Pi 128 Bytes at a time.
