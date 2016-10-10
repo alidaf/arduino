@@ -70,7 +70,7 @@
 
 #include <ssd1322-spi.h>
 #include <Wire.h>
-#include <beach.h>
+// #include <beach.h>
 
 //  ===========================================================================
 
@@ -100,12 +100,15 @@ void setup()
 
   // Serial monitor for debugging.
   Serial.begin(9600);
-  Serial.println( "Serial monitor started" );
 
-  Serial.println( "Calling SSD1322 init function...." );
+  // Hardware reset.
+  pinMode( SSD1322_RESET, OUTPUT );
+  digitalWrite( SSD1322_RESET, HIGH );
+  delay( 100 );
+  digitalWrite( SSD1322_RESET, LOW );
+    
   ssd1322_init();
-  Serial.println( "Back from SSD1322 init function." );
-  Serial.println();
+ 
 }
 
 //  ===========================================================================
@@ -119,6 +122,7 @@ void test_checkerboard( void )
 {
     uint8_t row, col;
 
+    ssd1322_clear_display();
     ssd1322_set_cols( COLS_VIS_MIN + 0x1c, COLS_VIS_MAX + 0x1c );
     ssd1322_set_rows( ROWS_VIS_MIN, ROWS_VIS_MAX );
     ssd1322_set_write_continuous();
@@ -127,12 +131,12 @@ void test_checkerboard( void )
         for ( col = 0; col <= COLS_VIS_MAX; col++ )
         {
             ssd1322_write_data( 0xf0 );
-            ssd1322_write_data( 0xf0 );
+            ssd1322_write_data( 0x0f );
         }
         for ( col = 0; col < COLS_VIS_MAX; col++ )
         {
             ssd1322_write_data( 0x0f );
-            ssd1322_write_data( 0x0f );
+            ssd1322_write_data( 0xf0 );
         }
     }
 }
@@ -168,6 +172,7 @@ void fill_block( uint8_t col1, uint8_t col2,
 // ----------------------------------------------------------------------------
 void test_greyscales( void )
 {
+    ssd1322_clear_display();
     // Upper 32 rows.
     fill_block( 0x00, 0x03, 0x00, 0x1f, 0xff ); // Col   0- 15.
     fill_block( 0x04, 0x07, 0x00, 0x1f, 0xee ); // Col  16- 31.
@@ -206,15 +211,30 @@ void test_greyscales( void )
 
 // ----------------------------------------------------------------------------
 /*
-    Display test - display 256x64 4-bit image.
+    Display test - display greyscales.
 */
 // ----------------------------------------------------------------------------
-void test_draw_image( uint8_t image[8192] )
+void test_blocks( void )
 {
-    ssd1322_set_cols( COLS_VIS_MIN + 0x1c, COLS_VIS_MAX + 0x1c );
-    ssd1322_set_rows( ROWS_VIS_MIN, ROWS_VIS_MAX );
-    ssd1322_set_write_continuous();
-    ssd1322_write_stream( image, 8192 );
+    uint8_t i, j;
+    uint8_t grey;
+
+    ssd1322_clear_display();
+    for ( i = 0; i < 16; i++ )
+    {
+      grey = 0xff - i * 17;
+      for ( j = 0; j < 16; j++ )
+      {
+          fill_block( 0x00 + j * 4, 0x03 + j * 4, 0x00, 0x1f, grey );
+          delay( 10 );
+      }
+      for ( j = 0; j < 16; j++ )
+      {
+          fill_block( 0x00 + j * 4, 0x03 + j * 4, 0x20, 0x3f, grey );
+          delay( 10 );
+      }
+   }
+
 }
 
 // ----------------------------------------------------------------------------
@@ -225,16 +245,24 @@ void test_draw_image( uint8_t image[8192] )
 
 void test_load_image( void )
 {
-    uint16_t i;
-    uint8_t  image[8192];
+    uint16_t i,j;
+//    uint8_t  image[8192];
+    uint8_t data;
 
+    ssd1322_clear_display();
+    ssd1322_set_cols( COLS_VIS_MIN + 0x1c, COLS_VIS_MAX + 0x1c );
+    ssd1322_set_rows( ROWS_VIS_MIN, ROWS_VIS_MAX );
+    ssd1322_set_write_continuous();
+
+//    Serial.println( "Loading image into array." );
     for ( i = 0; i < 8192; i++ )
     {
-        printf( "%u: %u, %u -> 0x%x.\n", i, beach[i*2], beach[i*2+1],
-                                          ( beach[i*2]<<4 | beach[i*2+1] ));
-        image[i] = ( beach[i*2]<<4 | beach[i*2+1] );
-    }
-    test_draw_image( image );
+//      Serial.print( beach[i*2] );
+//      Serial.print( beach[i*2+1] );
+//      data = ( beach[i*2]<<4 | beach[i*2+1] );
+//      ssd1322_write_data( data );
+    }    
+//    test_draw_image( image );
 }
 
 // ----------------------------------------------------------------------------
@@ -245,23 +273,12 @@ void test_load_image( void )
 // ----------------------------------------------------------------------------
 void loop()
 {
-    Serial.println( "LED = red" );
-    digitalWrite( LED_PIN_RED, HIGH );
-    digitalWrite( LED_PIN_GRN, LOW );
-
-    Serial.println( "Starting checkerboard test pattern." );
     test_checkerboard();
     delay( 5000 );
 
-    Serial.println( "LED = green" );
-    digitalWrite( LED_PIN_RED, LOW );
-    digitalWrite( LED_PIN_GRN, HIGH );
-
-    Serial.println( "Starting greyscale test pattern." );
     test_greyscales();
-    delay( 5000 );
-//    Serial.println( "Starting greyscale image pattern." );
-//    test_load_image();
-//    delay( 5000 );
+    delay( 1000 );
     
+    test_blocks();
+    delay( 500 );
 }

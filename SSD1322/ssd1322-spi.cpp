@@ -743,6 +743,7 @@ void ssd1322_set_defaults( void )
     ssd1322_set_com_volt_default();
     ssd1322_set_display_normal();
     ssd1322_set_part_display_off();
+	ssd1322_set_display_on();
     delay( 1000 );
 }
 
@@ -794,6 +795,7 @@ void ssd1322_init( void )
 	SPI.begin();
 
     ssd1322_reset();
+//	ssd1322_set_defaults();
     ssd1322_set_typical();
     ssd1322_clear_display();
 }
