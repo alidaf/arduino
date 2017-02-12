@@ -1,5 +1,5 @@
 //  ===========================================================================
-//  Arduino Stereo Audio Spectrum Analyser.
+//  Arduino ADC tests.
 //  ===========================================================================
 /*
 
@@ -21,16 +21,10 @@
 */
 //  ===========================================================================
 /*
-    This is essentially a test program to determine on the best (fastest) way
+    This is essentially a test program to determine the best (fastest) way
     to take ADC readings from multiple channels.
 */
 //  ===========================================================================
-
-//  ===========================================================================
-//  Includes.
-//  ===========================================================================
-
-#include <TimerOne.h>
 
 //  ===========================================================================
 //  Defines.
@@ -89,15 +83,12 @@ ISR( ADC_vect )
       ADC_buffer_full = true; // ADC sample buffer is full.
     }
 
-    // Switch to next channel.
-//    admux_temp = ( ADMUX & 0xf8 ) | ( admux[ADC_channel] & 0x0f );
-//    ADMUX = admux_temp;
-    bitset( ADCSRA, ADSC );
+     // Switch to next channel.
     ADMUX = ( ADMUX & 0xf8 ) | ( admux[ADC_channel] & 0x0f );
-    
+
   }
 
-  startADC();
+  startADC(); // Needed if not in free running mode.
 }
 
 //  ---------------------------------------------------------------------------
@@ -127,7 +118,7 @@ void setup( void )
 
   // ADEN  - 1  // Enable ADC.
   // ADSC  - 0  // Disable conversions.
-  // ADATE - 0  // Disable ADC auto trigger. Previously set.
+  // ADATE - 0  // Disable ADC auto trigger.
   // ADIF  - 0  // N/A - set by hardware.
   // ADIE  - 1  // Enable interrupt.
   // ADPS2 - 0  // }
@@ -143,7 +134,7 @@ void setup( void )
   // N/A        //
   // N/A        //
   // ADTS2 - 0  // }
-  // ADTS1 - 0  // }- Free Running Mode.
+  // ADTS1 - 0  // }- Free Running Mode - not active due to ADATE = 0.
   // ADTS0 - 0  // }
 
   // ADMUX.
@@ -223,10 +214,10 @@ void setup( void )
 void ADC_print_buffers( void )
 {
   uint16_t sample;  // Sample Counter.
-  uint8_t  channel;  // Channel Counter.
-  int8_t  ADC_copy[CHANNELS][SAMPLES]; // Copy of ADC buffers.
+  uint8_t  channel; // Channel Counter.
+  int8_t   ADC_copy[CHANNELS][SAMPLES]; // Copy of ADC buffers.
 
-  memcpy( ADC_copy, ADC_buffer, SAMPLES );
+  memcpy( ADC_copy, ADC_buffer, sizeof( ADC_buffer ));
 
   if ( OUTPUT_PRINT )
   {
