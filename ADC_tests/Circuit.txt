@@ -1,0 +1,43 @@
+//  ===========================================================================
+//  Hardware used.
+//  ===========================================================================
+/*
+    The L channel is read in through ADC0.
+    The R channel is read in through ADC1.
+
+	Note:
+
+		The ADC input impedance should be 10k or lower.
+		C1/C2 are coupling capacitors to remove the DC component, but form a
+		high-pass filter circuit with the resistor network.
+
+    Circuit:
+    
+      +5V-----------------,---,----------------+5V
+                          |   |
+                          |   |    
+                        [R3] [R4]    
+                          |   |    
+                          |   |   C2          Phono
+       		A1]-ADC1------(---+---||------------o R
+            A0]-ADC0------+---(---||------------o L       
+             		      |   |   C1    ,-------o GND     
+                   	      |   |         |
+                        [R5] [R6]       |
+                          |   |         |
+                          |   |         |
+      GND-----------------'---'---------'------GND
+
+      ,------------------------,
+      |   n   |   R    |   C   |
+      |-------+--------+-------|
+      |   1   | 10kOhm |  1uF  |
+      |   2   | 10kOhm |  1uF  |
+      |   3   | 10kOhm |       |
+      |   4   | 10kOhm |       |
+      '------------------------'
+
+	The input impedance is around 5k.
+	The filter corner frequency is around 20Hz.
+
+*/
