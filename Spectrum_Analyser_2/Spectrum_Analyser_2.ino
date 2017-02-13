@@ -29,27 +29,86 @@
     and https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
 */
 
+//  ===========================================================================
+//  Defines.
+//  ===========================================================================
 
+//  Bit tweaking macros --------------------------------------------------------
+#define bitset( reg, bit ) ( reg |= ( 1 << bit ))   // Set register bit
+#define bitclr( reg, bit ) ( reg &= ~( 1 << bit ))  // Clear register bit.
+#define bittst( reg, bit ) ( reg & ( 1 << bit ))    // Test register bit.
+
+//  FHT -----------------------------------------------------------------------
+/*
+  FHT output settings. These are mutually exclusive and affect which
+  variables and outputs are available.
+*/
+#define LIN_OUT      0  // Toggle linear output (word).
+#define LIN_OUT8     0  // Toggle linear output (byte).
+#define LOG_OUT      1  // Toggle logarithmic output (byte).
+#define OCTAVE       0  // Toggle octave output (byte).
+/*
+  FHT_OUT is normally FHT_N/2, except for OCTAVE output where
+  FHT_OUT = 8 for FHT_N = 256,
+  FHT_OUT = 7 for FHT_N = 128.
+*/
+#define FHT_N      128  // Number of FHT input bins per channel.
+#define FHT_OUT     64  // Number of FHT output bins per channel.
+
+//  Display -------------------------------------------------------------------
+/*
+    The settings determine the output that is displayed.
+*/
+#define CHANNELS        2 // Number of audio channels.
+#define FREQ_BANDS      8 // Number of frequency bands per channel.
+#define FREQ_LEDS      15 // Number of LEDS representing each band.
+#define LED_DATA_PIN    7 // Data pin for WS2812 LED strip.
+#define INIT_BRIGHT    50 // Initial LED brightness.
+#define INIT_REFRESH 50000 // Initial refresh time for LEDs.
+
+//  Debugging -----------------------------------------------------------------
+/*
+    This setting toggles some debugging output via the serial port. Since
+    there is ony 1 serial channel, these are mutually exclusive. Output is
+    sent as bytes and needs a suitable means of displaying the output to be
+    purposeful.
+
+    PD-extended has been used here with the patch from the 
+    openmusiclabs site.
+
+            see the link to FHT_128_channel_analyser.zip at
+            http://wiki.openmusiclabs.com/wiki/ArduinoFHT.
+*/
+
+#define DEBUG     0 // Print debug info to serial monitor.
+#define PLOT_ADC  0 // Send ADC data to serial plotter.
+#define PLOT_FHT  0 // Send FHT data to serial plotter.
+#define PRINT_ADC 1 // Print ADC data to serial monitor.
+#define PRINT_FHT 1 // Print FHT data to serial monitor.
 
 //  ===========================================================================
 //  Includes.
 //  ===========================================================================
 
-#include "Spectrum_Analyser_2.h"
+#include <Arduino.h>
+#include <FHT.h>
+#include <TimerOne.h>
+#include <Adafruit_NeoPixel.h>
 
 //  ===========================================================================
 //  Global variables.
 //  ===========================================================================
 
-volatile int8_t   ADCBuffer[CHANNELS][FHT_N];
-volatile uint8_t  ChannelIndex;
-volatile uint16_t ADCCounter;
-volatile boolean  FHTStart; // Flag to allow FHT data to be processed.
+volatile int8_t   ADC_buffer[CHANNELS][FHT_N];  // Ring buffer for ADC data.
+volatile uint8_t  ADC_channel;                  // Keeps track of ADC channel.
+volatile uint16_t ADC_sample;                   // Keeps track of ADC sample.
+volatile boolean  ADC_buffer_full;                    // Flag to start FHT process.
+
+volatile int8_t   ADC_copy[CHANNELS][FHT_N];     // Working copy of ADC input buffers.
+volatile uint8_t  FHT_output[CHANNELS][FHT_OUT]; // FHT output buffers.
 
 byte bandvals[CHANNELS][FREQ_BANDS];    // Frequency bands.
 byte peakvals[CHANNELS][FREQ_BANDS];    // Peak hold values.
-
-//volatile uint8_t channel;             // Current channel.
 
 const byte admux[CHANNELS] = { ADC0D, ADC1D };  // ADC assignments.
 const byte bins = FHT_OUT / FREQ_BANDS;         // Number of bins in each band.
@@ -60,7 +119,7 @@ const byte sampbins[FREQ_BANDS] = { 0, 1, 2, 3, 5, 12, 27, 60 }; // Log.
 //const byte sampbins[FREQ_BANDS] = {  4, 12, 20, 28, 36, 44, 52, 60 }; // Median.
 //const byte sampbins[FREQ_BANDS] = {  0,  8, 16, 24, 32, 40, 48, 56 }; // Start.
 //const byte sampbins[FREQ_BANDS] = {  7, 15, 23, 31, 39, 47, 55, 63 }; // End.
-//const byte sampbins[FREQ_BANDS] = { 0, 1, 2, 3, 5, 10, 22, 43 };      // Determined
+//const byte sampbins[FREQ_BANDS] = {  0,  1,  2,  3,  5, 10, 22, 43 }; // Determined
 
 float scaleLED;
 
@@ -70,7 +129,7 @@ Adafruit_NeoPixel ledstrip = Adafruit_NeoPixel( FREQ_BANDS * FREQ_LEDS,
 
 byte brightness = INIT_BRIGHT;        // Set initial LED brightness.
 long refresh = INIT_REFRESH;          // Set initial time (uS) between updates.
-volatile byte filling = 0;
+byte filling = 0;
 
 //  ===========================================================================
 //  Code.
@@ -81,33 +140,28 @@ volatile byte filling = 0;
 //  ---------------------------------------------------------------------------
 ISR( ADC_vect )
 {
-  uint8_t temp;
-  byte adch;  // Content of ADCH regiser.
-  byte adcl;  // Content of ADCL register.
-  int  adcx;  // Content of combined ADCH and ADCL registers.
-  
+
   // Fill next available buffer slot with ADC value.
-  ADCBuffer[ChannelIndex][ADCCounter] = ADCH - 0x80; // Read ADC value.
+  ADC_buffer[ADC_channel][ADC_sample] = ADCH - 0x80; // Read ADC value.
 
   // If the ADC buffer for the channel is full, switch channel.
-  if ( ++ADCCounter >= FHT_N )
+  if ( ++ADC_sample >= FHT_N )
   {
-    ADCCounter = 0;
+    ADC_sample = 0;
 
-    if ( ++ChannelIndex >= CHANNELS )
+    if ( ++ADC_channel >= CHANNELS )
     {
-      ChannelIndex = 0;
-      FHTStart = true; // Set flag to enable start of FHT.
+      ADC_channel = 0;
+      ADC_buffer_full = true; // Set flag to enable start of FHT.
+      // Make a working copy of the ADC input buffer.
+      memcpy( ADC_copy, ADC_buffer, sizeof( ADC_buffer ));
     }
 
     // Switch to next channel.
-    ADMUX &= 0xE0;                // Clear MUX bits.
-    ADMUX |= admux[ChannelIndex]; // Set MUX bits for new channel.
-
-    // Channel is not set until previous conversion is complete.
-    while ( !bittst( ADCSRA, ADIF )); // Loop until ADIF bit is set.
-
+    ADMUX = ( ADMUX & 0xf8 ) | ( admux[ADC_channel] & 0x0f );
   }
+
+  startADC(); // Not needed in free running mode.
 }
 
 //  ---------------------------------------------------------------------------
@@ -115,10 +169,7 @@ ISR( ADC_vect )
 //  ---------------------------------------------------------------------------
 void startADC( void )
 {
-  bitset( ADCSRA, ADEN );
   bitset( ADCSRA, ADSC );
-
-//  bitset( ADCSRA, ADATE ); // doesn't work
 }
 
 //  ---------------------------------------------------------------------------
@@ -126,8 +177,6 @@ void startADC( void )
 //  ---------------------------------------------------------------------------
 void stopADC( void )
 {
-//  bitclr( ADCSRA, ADATE ); // doesn't work.
-
   bitclr( ADCSRA, ADSC );
 }
 
@@ -136,13 +185,17 @@ void stopADC( void )
 //  ---------------------------------------------------------------------------
 void setup( void )
 {
+  if ( PLOT_ADC | PLOT_FHT ) Serial.begin( 250000 );
+  if ( DEBUG | PRINT_ADC | PRINT_FHT ) Serial.begin( 250000 );
+
+  if ( DEBUG ) Serial.println( "Starting Initialisation" );
 
   // ADCSRA.
-  ADCSRA = B00101011;
+  ADCSRA = B10001011;
 
-  // ADEN  - 0  // Disable ADC.
+  // ADEN  - 1  // Enable ADC.
   // ADSC  - 0  // Disable conversions.
-  // ADATE - 1  // Enable ADC auto trigger.
+  // ADATE - 0  // Disable ADC auto trigger.
   // ADIF  - 0  // Set by hardware
   // ADIE  - 1  // Enable interrupt.
   // ADPS2 - 0  // }
@@ -158,7 +211,7 @@ void setup( void )
   // N/A        //
   // N/A        //
   // ADTS2 - 0  // }
-  // ADTS1 - 0  // }- Free Running Mode.
+  // ADTS1 - 0  // }- Free Running Mode - not active (ADATE = 0).
   // ADTS0 - 0  // }
 
   // ADMUX.
@@ -216,16 +269,19 @@ void setup( void )
   // ACIS1 - 1  // Disable digital input AIN1D.
   // ACIS0 - 1  // Disable digital input AIN0D.
 
+  if ( DEBUG ) Serial.println( "ADC Registers set" );
+
   // Clear buffers.
-  memset( (void *) ADCBuffer, 0, sizeof( ADCBuffer ));
+  memset( (void *) ADC_buffer, 0, sizeof( ADC_buffer ));
+
+  if ( DEBUG ) Serial.println( "ADC buffers cleared" );
 
   // Set up counters and flags.
-  ADCCounter = 0;
-  ChannelIndex = 0;
-  FHTStart = false;
+  ADC_sample = 0;
+  ADC_channel = 0;
+  ADC_buffer_full = false;
 
-  if ( PLOT_ADC | PLOT_FHT ) Serial.begin( 250000 );
-  if ( DEBUG | PRINT_ADC | PRINT_FHT ) Serial.begin( 250000 );
+  if ( DEBUG ) Serial.println( "Counters and flags set" );
 
 //  ---------------------------------------------------------------------------
 //  Initialises the LED strip.
@@ -234,6 +290,8 @@ void setup( void )
 //  ledstrip.setBrightness( brightness );
 //  ledstrip.begin();
 //  ledstrip.show();
+  if ( DEBUG ) Serial.println( "LED strip initialised" );
+
 
 //  ---------------------------------------------------------------------------
 //  Initialises the timer.
@@ -244,7 +302,10 @@ void setup( void )
 
   if ( DEBUG ) Serial.println( "Initialisation complete" );
   
+  if ( DEBUG ) Serial.println( "Starting ADC" );
+
   startADC();
+
 }
 
 //  ---------------------------------------------------------------------------
@@ -273,89 +334,123 @@ void updateLED( void )
         Octave
 */
 //  ---------------------------------------------------------------------------
-void getFHTOutput( void )
+void start_FHT( void )
 {
-  uint16_t bin;     // FHT bin counter.
+  uint16_t sample;  // FHT bin counter.
   uint8_t  channel; // Channel counter.
-  uint8_t  fht_out_debug[CHANNELS][FHT_OUT];  // Debugging output.
-  uint8_t  fht_in_debug[CHANNELS][FHT_N];     // Debugging input.
+
+
+  if ( DEBUG ) Serial.println( "Starting FHT" );
 
   for ( channel = 0; channel < CHANNELS; channel++ )
   {
-    if ( DEBUG )
+    // Copy the working channel buffer into FHT input buffer.
+//    memcpy( fht_input, ADC_copy[channel], sizeof( ADC_copy[channel] ));
+    for ( sample = 0; sample < FHT_N; sample++ )
     {
-      Serial.print( "Channel " );
-      Serial.print( channel );
-      Serial.println();  
+      fht_input[sample] = ADC_copy[channel][sample];
     }
 
-    memcpy( fht_input, ADCBuffer[channel], FHT_N );
-    if ( DEBUG ) Serial.println( "Array copied." );
-
-//    fht_window();     // Window the data for better frequency response.
-    if ( DEBUG ) Serial.println( "FHT Windowed." );
-//    fht_reorder();    // Re-order the data before the FHT.
-    if ( DEBUG ) Serial.println( "FHT Reordered." );
-//    fht_run();        // Process the FHT.
-    if ( DEBUG ) Serial.println( "FHT Run." );
+    fht_window();     // Window the data for better frequency response.
+    fht_reorder();    // Re-order the data before the FHT.
+    fht_run();        // Process the FHT.
 
 //    fht_mag_lin();    // Produce linear output distribution.
 //    fht_mag_lin8();   // Produce linear 8-bit output distribution.
-//    fht_mag_log();    // Produce log FHT output.
+    fht_mag_log();    // Produce log FHT output.
 //    fht_mag_octave(); // Produce octave output distribution.
 
     if ( DEBUG ) Serial.println( "FHT Processing Complete." );
 
-    if ( PLOT_FHT | PRINT_FHT )
-    {
-      memcpy( fht_out_debug[channel], fht_mag_log, FHT_OUT );
-    }
+//    if ( PLOT_FHT ) Serial.write( (uint8_t*)fht_mag_log, FHT_OUT );
 
-    if ( PRINT_ADC )
+    // Copy FHT output for channel into output buffer.
+    for ( sample = 0; sample < FHT_OUT; sample++ )
+    {
+      FHT_output[channel][sample] = fht_mag_log[sample];
+    }
+  }
+
+}
+
+//  ---------------------------------------------------------------------------
+/*
+    This provides some debugging output for the ADC.
+*/
+//  ---------------------------------------------------------------------------
+void ADC_monitor( void )
+{
+  uint16_t sample;  // FHT bin counter.
+  uint8_t  channel; // Channel counter.
+
+  if ( PRINT_ADC )
+  {
+    for ( channel = 0; channel < CHANNELS; channel++ )
     {
       Serial.print( "ADC output content for Channel " );
       Serial.println( channel );
-      for ( bin = 0; bin < FHT_N; bin++ )
+      for ( sample = 0; sample < FHT_N; sample++ )
       {
         Serial.print( "Bin " );
-        Serial.print( bin );
+        Serial.print( sample );
         Serial.print( " = " );
-        Serial.print( ADCBuffer[channel][bin] );
+        Serial.print( ADC_copy[channel][sample] );
         Serial.println();
       }
     }
-
-    if ( PRINT_FHT )
-    {
-      Serial.println( "FHT output content for channel " );
-      Serial.println( channel );
-      for ( bin = 0; bin < FHT_OUT; bin++ )
-      {
-        Serial.print( "Bin " );
-        Serial.print( bin );
-        Serial.print( " = " );
-        Serial.print( fht_out_debug[channel][bin] );
-        Serial.println();
-      }
-    }
-
-  if ( PLOT_FHT ) Serial.write( fht_out_debug[channel], FHT_OUT );
-
   }
 
-
-  if ( PLOT_ADC )
+  if ( PLOT_ADC ) // Should be used with Arduino Plotter.
   {
-    for ( bin = 0; bin < FHT_N; bin++ )
+    for ( sample = 0; sample < FHT_N; sample++ )
     {
       for ( channel = 0; channel < CHANNELS; channel++ )
       {
-        Serial.print( ADCBuffer[channel][bin] );
+        Serial.print( ADC_copy[channel][sample] );
         Serial.print( "\t" );
       }
-      Serial.println();
+        Serial.println();
     }
   }
+
+}
+
+//  ---------------------------------------------------------------------------
+/*
+    This provides some debugging output for the FHT.
+*/
+//  ---------------------------------------------------------------------------
+void FHT_monitor( void )
+{
+  uint16_t sample;  // FHT bin counter.
+  uint8_t  channel; // Channel counter.
+
+  if ( PRINT_FHT )
+  {
+    for ( channel = 0; channel < CHANNELS; channel++ )
+    {
+      Serial.print( "FHT output content for channel " );
+      Serial.println( channel );
+      for ( sample = 0; sample < FHT_OUT; sample++ )
+      {
+        Serial.print( "Bin " );
+        Serial.print( sample );
+        Serial.print( " = " );
+        Serial.print( FHT_output[channel][sample] );
+        Serial.println();
+      }
+    }
+  }
+
+//  if ( PLOT_FHT ) // Should be used with an external serial grapher.
+//  {
+//    Serial.write( 255 );
+//    for ( channel = 0; channel < CHANNELS; channel++ )
+//    {
+//      Serial.write( (uint8_t*)FHT_output[channel], FHT_OUT );
+//    }
+//  }
+
 }
 
 //  ---------------------------------------------------------------------------
@@ -388,20 +483,18 @@ void getBands( void )
 //  ---------------------------------------------------------------------------
 void loop( void )
 {
-  if ( FHTStart )
+  while ( 1 )
   {
-//    stopADC();
-    if ( DEBUG )
-    {
-      Serial.println( "Calling FHT routine" );
-    }
-    getFHTOutput();
-    FHTStart = false;
-//    startADC();
-  }
+  
+    while ( !ADC_buffer_full );
+    if ( DEBUG ) Serial.println( "Calling FHT routine" );
+    if ( PLOT_ADC | PRINT_ADC ) ADC_monitor();
+    start_FHT();
+    if ( PLOT_FHT | PRINT_FHT ) FHT_monitor();
+    ADC_buffer_full = false;
 
 //    getBands();   // Get frequency band output.
 //    updateLED();  // Update LEDs. This is called by interrupt.
-
+  }
 }
 
