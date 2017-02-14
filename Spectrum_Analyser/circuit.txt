@@ -1,47 +1,22 @@
 //  ===========================================================================
-//  Arduino Stereo Audio Spectrum Analyser.
+//  Arduino Stereo Audio Spectrum Analyser - Hardware Used.
 //  ===========================================================================
 /*
-    Copyright 2017 Darren Faulke <darren@alidaf.co.uk>
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 2 of the License, or
-    (at your option) any later version.
+    The L channel is read in through ADC0.
+    The R channel is read in through ADC1.
+    Output to the WS2812 LED strip is sent from digital pin PD7
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	Note:
 
-    You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
-//  ===========================================================================
-/*
-    This project requires the ArduinoFHT4 library, which needs to be installed
-    manually, and the Adafruit NeoPixel library, which can be installed with
-    the Arduino library manager.
+		The ADC input impedance should be 10k or lower.
+		C1/C2 are coupling capacitors to remove the DC component, but form a
+		high-pass filter circuit with the resistor network.
 
-    see http://wiki.openmusiclabs.com/wiki/ArduinoFHT
-    and https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
-*/
-//  ===========================================================================
-//  Hardware used.
-//  ===========================================================================
-/*
     Parts List:
 
     Arduino Pro Mini 5V/16MHz.
     Breadboard for prototyping/Stripboard for production.
-
-
-
-    Circuit:
-    
-    The L channel is read in through ADC0.
-    The R channel is read in through ADC1.
-    Output to the WS2812 LED strip is sent from digital pin PD7
 
      +5V   GND
       |     |
@@ -53,14 +28,14 @@
       |     |         [TX0   RAW]-----'   |   |   |
       |     |         [RXI   GND]---------|   |   |
       |     |         [RST   RST]             |   |    
-      |     |         [GND   VCC]           [R3] [R4]    
+      |     |         [GND   VCC]           [R1] [R3]    
       |     |         [2      A3]             |   |    
       |     |         [3      A2]             |   |   C2          Phono
-      |     |         [4      A1]-ADC1--------(---+---||---[R2]-----o R
-      |     |         [5      A0]-ADC0--------+---(---||---[R1]-----o L       
+      |     |         [4      A1]-ADC1--------(---+---||------------o R
+      |     |         [5      A0]-ADC0--------+---(---||------------o L       
       |     |         [6      13]       .     |   |   C1    ,-------o GND     
       |     |   ,-PD7-[7      12]             |   |         |
-      |     |   |     [8      11]           [R5] [R6]       |
+      |     |   |     [8      11]           [R2] [R4]       |
       |     |   |     [9      10]             |   |         |
       |     |   |                             |   |         |
       |     |---(-----------------------------'---'         |
@@ -70,7 +45,7 @@
       |     |   |                                                 WS8212
       |-----(---(---------------------,-----------------------------o +5V
       |     |   |                     |
-      |     |   '---------------------(--------------------[R7]-----o Data
+      |     |   '---------------------(--------------------[R5]-----o Data
       |     |                         |
       |     |-----------------,-------(-----------------------------o GND
       |     |                 |   +   |
@@ -80,13 +55,11 @@
       ,-------------------------,
       |   n   |   R    |   C    |
       |-------+--------+--------|
-      |   1   |  1kOhm | 0.47pF |
-      |   2   |  1kOhm | 0.47pF |
+      |   1   | 10kOhm |    1uF |
+      |   2   | 10kOhm |    1uF |
       |   3   | 10kOhm | 1000uF |
       |   4   | 10kOhm |        |
-      |   5   | 10kOhm |        |
-      |   6   | 10kOhm |        |
-      |   7   | 470Ohm |        |
+      |   5   | 470Ohm |        |
       '-------------------------'
 */
 //  ===========================================================================
