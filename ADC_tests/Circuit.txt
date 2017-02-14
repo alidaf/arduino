@@ -12,7 +12,7 @@
 		high-pass filter circuit with the resistor network.
 
     Circuit:
-    
+
       +5V-----------------,---,----------------+5V
                           |   |
                           |   |
