@@ -1,5 +1,5 @@
 //  ===========================================================================
-//  Arduino Stereo Audio Spectrum Analyser - Hardware Used.
+//  Arduino Stereo Audio Spectrum Analyser.
 //  ===========================================================================
 /*
 
@@ -10,78 +10,102 @@
 	Note:
 
 		The ADC input impedance should be 10k or lower.
-		C1/C2 are coupling capacitors to remove the DC component, but form a
-		high-pass filter circuit with the resistor network.
 
-    Circuit 1:
+//  Circuit 1 -----------------------------------------------------------------
 
     This is the most basic circuit needed to sample from an audio source such
     as a headphone socket. There is no circuit gain and even on high volumes
     there will be insufficient signal to give a full range of output.
 
-      +5V-----------------,---,----------------+5V
+      +5V-----------------,---,---------------+5V
                           |   |
                           |   |
                         [R1] [R3]
-                          |   |
-                          |   |   C2          Phono
-       	    A1]-ADC1------(---+---||------------o R
-            A0]-ADC0------+---(---||------------o L
-                          |   |   C1    ,-------o GND
-                          |   |         |
-                        [R2] [R4]       |
-                          |   |         |
-                          |   |         |
-      GND-----------------'---'---------'------GND
+      Phono               |   |         Arduino
+                  C1      |   |           [
+       	 L o------||------+---(------ADC0-[A0
+                          |   |           [
+         R o------||------(---+------ADC1-[A1
+                  C2      |   |           [
+       GND o---,          |   |
+               |        [R2] [R4]
+               |          |   |
+               |          |   |
+      GND------'----------'---'---------------GND
 
-      ,------------------------,
+      ,-------,--------,-------,
       |   n   |   R    |   C   |
       |-------+--------+-------|
       |   1   | 10kOhm |  1uF  |
       |   2   | 10kOhm |  1uF  |
       |   3   | 10kOhm |       |
       |   4   | 10kOhm |       |
-      '------------------------'
+      '-------'--------'-------'
 
-	The input impedance is around 5k.
-	The filter corner frequency is around 20Hz.
+    C1/C2 are coupling capacitors to remove the DC component, but form a
+    high-pass filter circuit with the resistor network.
+ 
+    Input impedance, Z = R1||R2 & R3||R4, = 5kOhms.
+    Filter corner frequency, fc = 1/(2*pi*Z*C1), = 31.8Hz.
 
 
-    Circuit 2:
+//  Circuit 2 -----------------------------------------------------------------
 
-//  ===========================================================================
-    This is a slightly more advanced circuit, that provides some gain that can
-    be adjusted by changing the values of Rx and Ry.
+    This is a slightly more advanced circuit that provides gain that can
+    be adjusted by changing the values of R5/R6 and R7/R8.
 
-	Needs updating - refer to qucs circuit for now.
+      +5V-----------,---,---------------------------------------------+5V
+                    |   |
+                    |   |                ,----[R6]----,
+                    |   |                |            |
+                  [R1] [R3]    C3        |  |\        |
+      Phono         |   |   ,--||--[R5]--'--|+ \      |        Arduino
+                    |   |   |   +           |    \    |
+                    |   |   |               |     |---'--------ADC0-[A0
+               C1   |   |   |               |    /                  [ 
+       	 L o---||---+---(---(---------------|- /                    [
+                    |   |   |               |/                      [
+                    |   |   |                                       [
+                    |   |   |                ,----[R8]----,         [
+                    |   |   |                |            |         [
+                    |   |   |      C4        |  |\        |         [
+                    |   |   |   ,--||--[R7]--'--|+ \      |         [
+                    |   |   |   |   +           |    \    |         [
+                    |   |   |   |               |     |---'----ADC1-[A1
+                    |   |   |   |               |    /
+         R o---||---(---+---(---(---------------|- /
+               C2   |   |   |   |               |/
+       GND o---,    |   |   |   |
+               |  [R2] [R4] |   |
+               |    |   |   |   |
+               |    |   |   |   |
+      GND-----------'---'---'---'-------------------------------------GND
 
-      +5V-----------------,---,----------------+5V
-                          |   |
-                          |   |
-                        [R1] [R3]
-                          |   |
-                          |   |   C2          Phono
-       	    A1]-ADC1------(---+---||------------o R
-            A0]-ADC0------+---(---||------------o L
-                          |   |   C1    ,-------o GND
-                          |   |         |
-                        [R2] [R4]       |
-                          |   |         |
-                          |   |         |
-      GND-----------------'---'---------'------GND
+      ,-------,---------,--------,
+      |   n   |   R     |   C    |
+      |-------+---------+--------|
+      |   1   | 10kOhm  |  1uF   |
+      |   2   | 10kOhm  |  1uF   |
+      |   3   | 10kOhm  |  4.7uF |
+      |   4   | 10kOhm  |  4.7uF |
+      |   5   | 2.2kOhm |        |
+      |   6   | 10kOhm  |        |
+      |   7   | 2.2kOhm |        |
+      |   8   | 10kOhm  |        |
+      '-------'---------'--------'
 
-      ,------------------------,
-      |   n   |   R    |   C   |
-      |-------+--------+-------|
-      |   1   | 10kOhm |  1uF  |
-      |   2   | 10kOhm |  1uF  |
-      |   3   | 10kOhm |       |
-      |   4   | 10kOhm |       |
-      '------------------------'
+	Op-amp choice: MCP6022, which is a 5V rail-to-rail dual op-amp works
+                   quite well but too much gain can cause saturation of
+                   the ADC signal. This can also increase the magnitude
+                   of folded frequencies caused by undersampling.
+    R5 and R7 could be replaced by potentiometers and adjusted until a
+    suitable gain is achieved.
 
-	The input impedance is around 5k.
-	The filter corner frequency is around 20Hz.
-
+	Gain = (1 + R6/R5) and (1 + R8/R7) = 5.5 for the tabulated values.
+    Input impedance, Z = R1||R2 & R3||R4, = 5kOhms.
+	Input impedance to the ADC pins is based on the op-amp.
+    Filter corner frequency, fc1 = 1/(2*pi*R5*C3) = 15.4Hz.
+    Filter corner frequency, fc2 = 1/(2*pi*Z*C1) = 31.8Hz.
 
 */
 
