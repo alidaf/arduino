@@ -8,6 +8,7 @@
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
+
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -25,6 +26,7 @@
     See http://wiki.openmusiclabs.com/wiki/ArduinoFHT
     and https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
 */
+//  ===========================================================================
 
 //  ===========================================================================
 //  Defines.
@@ -58,26 +60,14 @@
 #define LIN_OUT8     0  // Toggle linear output (byte).
 #define LOG_OUT      1  // Toggle logarithmic output (byte).
 #define OCTAVE       0  // Toggle octave output (byte).
+
 #define SCALE      256  // Scaling factor for LIN_OUT8.
 
 #define FHT_N      128  // Number of FHT input bins per channel.
-#define FHT_OUT     64  // Number of FHT output bins per channel.
 /*
-  Note:
-  FHT_N must be either of 256, 128, 64, 32, 16.
-  FHT_OUT = FHT_N/2, except for OCTAVE output where
-  FHT_OUT = log(FHT_N)/log(2), i.e.
-
-  ,-------------------,
-  |  FHT_N  | FHT_OUT |
-  |---------+---------|
-  |    256  |    8    |
-  |    128  |    7    |
-  |     64  |    6    |
-  |     32  |    5    |
-  |     16  |    4    |
-  '-------------------'
+  Note: FHT_N must be either of 256, 128, 64, 32, 16.
 */
+
 //  Display -------------------------------------------------------------------
 /*
     These settings define the LED layout and settings.
@@ -96,6 +86,53 @@
 #define bitclr( reg, bit ) ( reg &= ~( 1 << bit ))  // Clear register bit.
 #define bittst( reg, bit ) ( reg & ( 1 << bit ))    // Test register bit.
 
+//  Macro functions ------------------------------------------------------------
+
+#if LIN_OUT
+  #define FHT_OUTPUT_TYPE() fht_mag_lin()
+  #define FHT_OUTPUT_FILL() FHT_output[FHT_channel][i] = fht_lin_out[i]
+#elif LIN_OUT8 
+  #define FHT_OUTPUT_TYPE() fht_mag_lin8()
+  #define FHT_OUTPUT_FILL() FHT_output[FHT_channel][i] = fht_lin_out8[i]
+#elif LOG_OUT
+  #define FHT_OUTPUT_TYPE() fht_mag_log()
+  #define FHT_OUTPUT_FILL() FHT_output[FHT_channel][i] = fht_log_out[i]
+#elif OCTAVE
+  #define FHT_OUTPUT_TYPE() fht_mag_octave()
+  #define FHT_OUTPUT_FILL() FHT_output[FHT_channel][i] = fht_oct_out[i]
+#endif
+
+/*
+  Defines the correct number of FHT output bins, FHT_OUT.
+  FHT_OUT = FHT_N/2, except for OCTAVE output where
+  FHT_OUT = log(FHT_N)/log(2), i.e.
+
+  ,-------------------,
+  |  FHT_N  | FHT_OUT |
+  |---------+---------|
+  |    256  |    8    |
+  |    128  |    7    |
+  |     64  |    6    |
+  |     32  |    5    |
+  |     16  |    4    |
+  '-------------------'
+*/
+#if OCTAVE
+  #if FHT_N == 256
+    #define FHT_OUT 8
+  #elif FHT_N == 128
+    #define FHT_OUT 7
+  #elif FHT_N == 64
+    #define FHT_OUT 6
+  #elif FHT_N == 32
+    #define FHT_OUT 5
+  #elif FHT_N == 16
+    #define FHT_OUT 4
+  #endif
+#elif LIN_OUT | LOG_OUT | LIN_OUT8
+    #define FHT_OUT FHT_N / 2
+#endif
+
 //  ===========================================================================
 //  Includes.
 //  ===========================================================================
@@ -109,7 +146,7 @@
 //  Global variables.
 //  ===========================================================================
 
-volatile int      ADC_buffer[FHT_N];  // Ring buffer for ADC data.
+volatile int16_t  ADC_buffer[FHT_N];  // Ring buffer for ADC data.
 volatile uint8_t  ADC_channel;        // Keeps track of ADC channel.
 volatile uint16_t ADC_sample;         // Keeps track of ADC sample.
 volatile uint8_t  FHT_channel;        // Keeps track of FHT channel.
@@ -135,9 +172,9 @@ const byte sampbins[LED_BANDS] = { 0, 1, 2, 3, 5, 12, 27, 60 }; // Log.
 
 float scaleLED;
 
-Adafruit_NeoPixel ledstrip = Adafruit_NeoPixel( LED_BANDS * LED_COUNT,
-                                                LED_DATA_PIN,
-                                                NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel led_strip = Adafruit_NeoPixel( LED_BANDS * LED_COUNT,
+                                                 LED_DATA_PIN,
+                                                 NEO_GRBW + NEO_KHZ800);
 
 byte brightness = INIT_BRIGHT;  // Set initial LED brightness.
 long refresh = INIT_REFRESH;    // Set initial time (uS) between updates.
@@ -275,9 +312,9 @@ void setup( void )
   if ( DEBUG ) Serial.println( "Counters and flags set" );
 
   //  Initialise the LED strip.
-//  ledstrip.setBrightness( brightness );
-//  ledstrip.begin();
-//  ledstrip.show();
+//  led_strip.setBrightness( brightness );
+//  led_strip.begin();
+//  led_strip.show();
 //  if ( DEBUG ) Serial.println( "LED strip initialised" );
 
   //  Initialise the timer for updating the LED strip.
@@ -291,7 +328,6 @@ void setup( void )
   
   bitset( ADCSRA, ADIE ); // Enable ADC interrupts.
   bitset( ADCSRA, ADSC ); // Start ADC conversions.
-
 }
 
 //  ---------------------------------------------------------------------------
@@ -343,15 +379,7 @@ void get_FHT_output( void )
 
   if ( DEBUG ) Serial.println( "get_FHT_output called." );
 
-  for ( i = 0; i < FHT_OUT; i++ )
-  {
-    // Code a macro to replace this section!
-//    FHT_output[FHT_channel][i] = fht_lin_out[i];
-//    FHT_output[FHT_channel][i] = fht_lin_out8[i];
-    FHT_output[FHT_channel][i] = fht_log_out[i];
-//    FHT_output[FHT_channel][i] = fht_oct_out[i];
-  }
-  
+  for ( i = 0; i < FHT_OUT; i++ ) FHT_OUTPUT_FILL(); // Macro substitute.
 }
 
 //  ---------------------------------------------------------------------------
@@ -368,7 +396,6 @@ void update_LED( void )
   Serial.write( 255 );
   for ( i = 0; i < CHANNELS; i++ ) Serial.write( FHT_output[i], FHT_OUT );
   display_ready = false;
-
 }
 
 //  ---------------------------------------------------------------------------
@@ -381,21 +408,15 @@ void start_FHT( void )
 //
   if ( DEBUG ) Serial.println( "start_FHT called" );
 
-  fht_window();     // Window the data for better frequency response.
-  fht_reorder();    // Re-order the data before the FHT.
-  fht_run();        // Process the FHT.
+  fht_window();   // Window the data for better frequency response.
+  fht_reorder();  // Re-order the data before the FHT.
+  fht_run();      // Process the FHT.
 
+  FHT_OUTPUT_TYPE();        // Macro that calls appropriate function.
+  bitset( ADCSRA, ADIE );   // Re-enable interrupts.
+  bitset( ADCSRA, ADSC );   // Re-start conversions.
 
-// Code a macro to replace this section!
-//  fht_mag_lin();    // Produce linear (word) FHT output.
-//  fht_mag_lin8();   // Produce linear (byte)FHT output.
-  fht_mag_log();    // Produce log (byte) FHT output.
-//  fht_mag_octave(); // Produce octave (byte) FHT output.
-
-  ADC_buffer_full = false;
-  bitset( ADCSRA, ADIE ); // Re-enable interrupts.
-  bitset( ADCSRA, ADSC ); // Re-start conversions.
-
+  ADC_buffer_full = false;  // Set flag.
 }
 
 //  ---------------------------------------------------------------------------
@@ -419,7 +440,6 @@ void ADC_print( void )
     Serial.print( fht_input[i] );
     Serial.println();
   }
-
 }
 
 //  ---------------------------------------------------------------------------
@@ -429,8 +449,7 @@ void ADC_print( void )
 //  ---------------------------------------------------------------------------
 void FHT_print( void )
 {
-  uint8_t i;  // FHT bin counter.
-//  uint8_t fht_out[FHT_OUT];
+  uint8_t i;  // Counter.
 
   if ( DEBUG ) Serial.println( "FHT_print called." );
 
@@ -444,7 +463,6 @@ void FHT_print( void )
     Serial.print( FHT_output[FHT_channel][i] );
     Serial.println();
   }
-
 }
 
 //  ---------------------------------------------------------------------------
@@ -461,8 +479,8 @@ void FHT_plot( void )
   Serial.write( 255 );
   for ( i = 0; i < CHANNELS; i++ ) Serial.write( FHT_output[i], FHT_OUT );
   display_ready = false;
-
 }
+
 //  ---------------------------------------------------------------------------
 /*
     Sets flag on timer interrupt.
@@ -517,6 +535,5 @@ void loop( void )
     if ( FHT_PLOT ) FHT_plot();
     if ( ENABLE_LED ) update_LED();
   }
-
 }
 
