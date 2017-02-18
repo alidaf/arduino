@@ -61,6 +61,8 @@
 #define LOG_OUT      1  // Toggle logarithmic output (byte).
 #define OCTAVE       0  // Toggle octave output (byte).
 
+#define WINDOW       0  // Toggle windowing function.
+
 #define SCALE      256  // Scaling factor for LIN_OUT8.
 
 #define FHT_N      128  // Number of FHT input bins per channel.
@@ -77,8 +79,8 @@
 #define LED_COUNT       15  // Number of LEDS representing each band.
 #define LED_DATA_PIN     7  // Data pin for WS2812 LED strip.
 
-#define INIT_BRIGHT      50  // Initial LED brightness.
-#define INIT_REFRESH 100000  // Initial refresh time for LEDs (us).
+#define INIT_BRIGHT       50  // Initial LED brightness.
+#define INIT_REFRESH  100000  // Initial refresh time for LEDs (us).
 
 //  Bit tweaking macros --------------------------------------------------------
 
@@ -408,7 +410,7 @@ void start_FHT( void )
 //
   if ( DEBUG ) Serial.println( "start_FHT called" );
 
-  fht_window();   // Window the data for better frequency response.
+  if ( WINDOW) fht_window();   // Window the data for better frequency response.
   fht_reorder();  // Re-order the data before the FHT.
   fht_run();      // Process the FHT.
 
