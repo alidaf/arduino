@@ -55,7 +55,8 @@
 #define LED_SCALE        1 // Scale factor for MSGEQ7 output.
 #define LED_GAP          2 // Number of LEDS skipped between channels.
 #define LED_COUNT       17 // Number of LEDS representing each band.
-#define LED_HOLD         6 // Number of cycles to sustain peak values.
+#define LED_HOLD        20 // Number of cycles to sustain peak values.
+#define LED_DECAY        5 // Number of cycles before dropping peak level.
 #define LED_NUM MSGEQ7_CHANNELS * MSGEQ7_BINS * LED_COUNT + LED_GAP
 
 //  Colours -------------------------------------------------------------------
@@ -95,6 +96,7 @@ volatile uint16_t MSGEQ7_data[MSGEQ7_CHANNELS][MSGEQ7_BINS];
 volatile uint8_t LED_mean_level[MSGEQ7_CHANNELS][MSGEQ7_BINS];
 volatile uint8_t LED_peak_level[MSGEQ7_CHANNELS][MSGEQ7_BINS];
 volatile uint8_t LED_peak_count[MSGEQ7_CHANNELS][MSGEQ7_BINS];
+volatile uint8_t LED_hold_count[MSGEQ7_CHANNELS][MSGEQ7_BINS];
 
 // ADC assignments.
 const byte admux[ADC_CHANNELS] = { ADC0D, ADC1D, ADC2D, ADC3D, ADC4D, ADC5D };
@@ -232,6 +234,7 @@ void setup( void )
   memset( (void *) LED_mean_level, 0, sizeof( LED_mean_level ));
   memset( (void *) LED_peak_level, 0, sizeof( LED_peak_level ));
   memset( (void *) LED_peak_count, 0, sizeof( LED_peak_count ));
+  memset( (void *) LED_hold_count, 0, sizeof( LED_peak_count ));
 
   if ( DEBUG ) Serial.println( "ADC buffers cleared." );
 
@@ -293,11 +296,6 @@ void setup( void )
 
   for ( i = 0; i < leds.numPixels(); i++ )
   leds.setPixelColor( i, GREEN );  
-  leds.show();
-  delay( 1000 );
-
-  for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, GREY1 );  
   leds.show();
   delay( 1000 );
 
@@ -387,22 +385,35 @@ void update_levels( void )
         if ( MSGEQ7_data[channel][bin] >= mean * led_level ) break;
       }
       LED_mean_level[channel][bin] = mean;
+
+      // Compare mean level against peak and hold if greater.
       if ( mean > LED_peak_level[channel][bin] )
       {
         LED_peak_level[channel][bin] = mean;
-        LED_peak_count[channel][bin] = LED_HOLD;
+        LED_hold_count[channel][bin] = LED_HOLD;
       }
       else
       {
-        if ( LED_peak_count[channel][bin] == 0 )
+        // If hold count = 0 then peak level is decaying.
+        if ( LED_hold_count[channel][bin] == 0 )
         {
-          if ( LED_peak_level[channel][bin] > 0 )
-               LED_peak_level[channel][bin]--;
-          LED_peak_count[channel][bin] = LED_HOLD;
+          // if decay count = 0 then move level down and reset count
+          if ( LED_peak_count[channel][bin] == 0 )
+          {
+            if ( LED_peak_level[channel][bin] > 0 )
+            {
+              LED_peak_level[channel][bin]--;
+            }
+            LED_peak_count[channel][bin] = LED_DECAY;
+          }
+          else
+          {
+            LED_peak_count[channel][bin]--;
+          }
         }
         else
         {
-          LED_peak_count[channel][bin]--;
+          LED_hold_count[channel][bin]--;
         }
       }
     }
