@@ -1,5 +1,5 @@
 //  ===========================================================================
-//  Arduino Stereo Audio Spectrum Analyser using MSGEQ7 and LCD.
+//  Arduino Stereo Audio Spectrum Analyser using MSGEQ7 and HD44780 LCD.
 //  ===========================================================================
 /*
     Copyright 2017 Darren Faulke <darren@alidaf.co.uk>
@@ -33,12 +33,14 @@
     This setting toggles some debugging output via the serial port.
 */
 #define DEBUG        0 // Print debug info to serial console.
-#define MSGEQ7_PRINT 0 // Print MSGEQ7 data to serial console.
+#define MSGEQ7_PRINT 1 // Print MSGEQ7 data to serial console.
 
 //  MSGEQ7 --------------------------------------------------------------------
 
-#define MSGEQ7_STROBE   7 // Arduino digital pin for MSGEQ7 strobe.
-#define MSGEQ7_RESET    8 // Arduino digital pin for MSGEQ7 reset.
+// Note pins 0-7 are on PORTD while pins 8-13 are on PORTB.
+#define MSGEQ7_STROBE   6 // Arduino digital pin for MSGEQ7 strobe.
+#define MSGEQ7_RESET    7 // Arduino digital pin for MSGEQ7 reset.
+
 #define MSGEQ7_BINS     7 // Number of frequency bands.
 #define MSGEQ7_CHANNELS 2 // Number of audio channels (1 MSGEQ7 for each).
 #define MSGEQ7_CYCLES   3 // Number of cycles to keep peak values.
@@ -71,7 +73,6 @@
 //  ===========================================================================
 
 #include <Arduino.h>
-#include <Wire.h>
 #include <LiquidCrystal.h>
 #include <TimerOne.h>
 #include <Adafruit_NeoPixel.h>
@@ -116,10 +117,10 @@ void setup( void )
 
   if ( DEBUG |  MSGEQ7_PRINT ) Serial.begin( 115200 );
 
-  if ( DEBUG ) Serial.println( "Starting Initialisation" );
+  if ( DEBUG ) Serial.println( "Starting Initialisation." );
 
   // ADCSRA.
-//  ADCSRA = B10000101;
+  ADCSRA = B10000101;
 
   // ADEN  - 1  // Enable ADC.
   // ADSC  - 0  // Disable conversions.
@@ -146,7 +147,7 @@ void setup( void )
 */
 
   // ADCSRB.
-//  ADCSRB = B00000000;
+  ADCSRB = B00000000;
 
   // N/A        //
   // ACME  - 0  // Disable Analogue Comparator Mux.
@@ -158,7 +159,7 @@ void setup( void )
   // ADTS0 - 0  // }
 
   // ADMUX.
-//  ADMUX = B01000000;
+  ADMUX = B01000000;
   
   // REFS1 - 0  // }- Use Vcc as reference.
   // REFS0 - 1  // } 
@@ -178,7 +179,7 @@ void setup( void )
 */
 
   // TIMSK0.
-//  TIMSK0 - B00000000;
+  TIMSK0 - B00000000;
 
   // N/A        //
   // N/A        //
@@ -190,7 +191,7 @@ void setup( void )
   // TOIE0  - 0 // Disable timer overflow interrupt.
 
   // DIDR0.
-//  DIDR0 = B00111111;
+  DIDR0 = B00111111;
 
   // N/A        // }- Pins ADC7D & ADC6D do not have input buffers.
   // N/A        // }
@@ -202,7 +203,7 @@ void setup( void )
   // ADC0D - 1  // Disable digital input ADC0.
 
   // DIDR1.
-//  DIDR1 = B00000011;
+  DIDR1 = B00000011;
 
   // N/A        //
   // N/A        //
@@ -213,7 +214,7 @@ void setup( void )
   // ACIS1 - 1  // Disable digital input AIN1D.
   // ACIS0 - 1  // Disable digital input AIN0D.
 
-  if ( DEBUG ) Serial.println( "ADC Registers set" );
+  if ( DEBUG ) Serial.println( "ADC Registers set." );
 
   // Clear MSGEQ7 buffers.
   memset( (void *) MSGEQ7_data, 0, sizeof( MSGEQ7_data ));
@@ -222,8 +223,10 @@ void setup( void )
   if ( DEBUG ) Serial.println( "ADC buffers cleared" );
 
   // Initialise MSGEQ7.
-  pinMode( MSGEQ7_RESET, OUTPUT );
-  pinMode( MSGEQ7_STROBE, OUTPUT );
+  bitset( DDRD, MSGEQ7_RESET );  // Set pin as output.
+  bitset( DDRD, MSGEQ7_STROBE ); // Set pin as output.
+
+  if ( DEBUG ) Serial.println( "MSGEQ7 initialised." );
 
   // Initialise LCD.
   lcd.begin( 16, 2 );
@@ -240,7 +243,7 @@ void setup( void )
             
   lcd.print( "  L  MSGEQ7  R  " );
 
-  if ( DEBUG ) Serial.println( "LCD display initialised" );
+  if ( DEBUG ) Serial.println( "LCD display initialised." );
 
   if ( DEBUG )
   {
@@ -256,14 +259,12 @@ void setup( void )
     }
   }
 
-  if ( DEBUG ) Serial.println( "Initialisation complete" );
+  if ( DEBUG ) Serial.println( "Initialisation complete." );
   
-//  bitset( ADCSRA, ADIE ); // Enable ADC interrupts.
-//  bitset( ADCSRA, ADSC ); // Start ADC conversions.
 }
 
 //  ---------------------------------------------------------------------------
-//  ADC conversion interrupt.
+//  Reads data from MSGEQ7s via ADCs.
 //  ---------------------------------------------------------------------------
 void MSGEQ7_get_data( void )
 {
@@ -275,29 +276,27 @@ void MSGEQ7_get_data( void )
   uint16_t peak;
 
   // Reset MSGEQ7.
-  digitalWrite( MSGEQ7_RESET, HIGH );
-  digitalWrite( MSGEQ7_RESET, LOW );
+  bitset( PORTD, MSGEQ7_RESET );
+  bitclr( PORTD, MSGEQ7_RESET );
   delayMicroseconds( 75 );
-
-
-//    ADMUX = ( ADMUX & 0xf8 ) | ( admux[channel] & 0x0f );
 
   for ( bin = 0; bin < MSGEQ7_BINS; bin++ )
   {
-//      bitset( ADCSRA, ADSC ); // Start ADC conversions.
-    digitalWrite( MSGEQ7_STROBE, LOW );
+    bitclr( PORTD, MSGEQ7_STROBE );
+//    digitalWrite( MSGEQ7_STROBE, LOW );
     delayMicroseconds( 40 );
-
-//      adcl = ADCL;
-//      adch = ADCH;
-//      adcx = (( adch << 8 ) | adcl );
-//      MSGEQ7_data[channel][bin] = adcx;
 
     for ( channel = 0; channel < MSGEQ7_CHANNELS; channel++ )
     {
 
-      MSGEQ7_data[channel][bin] = analogRead( channel );
-
+      ADMUX = ( ADMUX & 0xf8 ) | ( admux[channel] & 0x0f );
+      bitset( ADCSRA, ADSC ); // Start ADC conversion.
+      while bittst( ADCSRA, ADSC );
+      adcl = ADCL;
+      adch = ADCH;
+      adcx = (( adch << 8 ) | adcl );
+      MSGEQ7_data[channel][bin] = adcx;
+      
       // Refresh peak hold value.
       if ( MSGEQ7_data[channel][bin] > MSGEQ7_peak[channel][bin] )
       {
@@ -314,8 +313,7 @@ void MSGEQ7_get_data( void )
         }
       }
     }
-//      bitclr( ADCSRA, ADSC ); // Stop ADC conversions.
-    digitalWrite( MSGEQ7_STROBE, HIGH );
+    bitset( PORTD, MSGEQ7_STROBE );
     delayMicroseconds( 40 );
 
   }
@@ -406,7 +404,7 @@ void loop( void )
 
   if ( MSGEQ7_PRINT ) MSGEQ7_print();
   LCD_update();
-  delayMicroseconds( 1000 );
+  delayMicroseconds( 1000 ); // Doesn't seem to do anything. Try interrupt?
 
 }
 
