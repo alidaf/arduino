@@ -1,0 +1,96 @@
+//  ===========================================================================
+//  Settings.
+//  ===========================================================================
+
+//  Divisor -------------------------------------------------------------------
+/*
+
+    The Arduino ADC runs at a clock rate determined by the divisor, which is
+    set to 64 by default, i.e. the ADC runs at 1/64 of the full clock rate.
+    Changing the divisor is done by setting the ADPSn registers:
+
+    Typical audio range = 20Hz - 20kHz (Target is 20kHz).
+    Arduino clock = 16MHz.
+    ADC capture takes 13 cycles in free running mode.
+    Nyquist Effective Bandwidth = Sample Frequency / 2.
+    Therefore approx bandwidth = 16000000/(div*13*2) 
+
+            ,-----------------------------,
+            |   ADPSn   | Div | Bandwidth |
+            | 2 | 1 | 0 |     |   (Hz)    |
+            |---+---+---+-----+-----------|
+            | 0 | 0 | 0 |   2 |  307692   |
+            | 0 | 0 | 1 |   2 |  307692   |
+            | 0 | 1 | 0 |   4 |  153846   |
+            | 0 | 1 | 1 |   8 |   76923   |
+            | 1 | 0 | 0 |  16 |   38461   |
+            | 1 | 0 | 1 |  32 |   19230   |
+            | 1 | 1 | 0 |  64 |    9615   |
+            | 1 | 1 | 1 | 128 |    4807   |
+            '-----------------------------'
+*/
+//  Display -------------------------------------------------------------------
+/*
+    There are typically more output bins than can be displayed. For the
+    display, each frequency band can cover a number of bins so there are a
+    few options available:
+
+    1) Average or RMS the bins over each frequency band. This is likely to
+       have a significant overhead of cycles to complete and may slow down
+       the overall processing too much.
+    2) Display the maximum of all bins within the frequency band. This is
+       likely to have relatively little overhead but the frequency bands
+       would all be fixed in size and position.
+	3) Perform some kind of averaging over the bins to capture a range rather
+       than a specific frequency.
+    4) Specify the frequencies to display by calculating the specific bin
+       positions of those frequencies. Probably the best option in terms of
+       performance but also allows a lot more customisation. This option
+       is implemented here as function getbands(). The bands can be weighted
+       or equispaced:
+
+    The frequency of a particular bin, i, is found from:
+    
+              f = i * Sample Rate / FHT_N
+
+    Therefore, the bin number for a particular frequency can be found from:
+
+              i = f * FHT_N / ( 2 * Sample Rate )
+
+    A starting point for picking suitable frequencies over a fixed range
+    can be calculated with the following formula (based on linear FHT output):
+
+              fn = n * ( fe/fs )^((n-1)/(N-1))
+    where
+
+      fn = the frequency at ordinate n (from 1 to N).
+      N  = the number of frequencies to display.
+      fs = the starting frequency.
+      fe = the end frequency.
+
+    For a nominal frequency range of 60Hz (fs) - 18kHz (fe) over 8 ordinates,
+    FHT_N = 128 & Sample Rate = 19230Hz (based on a divider of 32):
+
+                      ,-----------------,
+                      | x | f(Hz) | bin |
+                      |---+-------+-----|
+                      | 1 |    60 |   0 |
+                      | 2 |   136 |   1 |
+                      | 3 |   306 |   2 |
+                      | 4 |   691 |   3 |
+                      | 5 |  1562 |   5 |
+                      | 6 |  3528 |  12 |
+                      | 7 |  7969 |  27 |
+                      | 8 | 18000 |  60 |
+                      '-----------------'
+
+    Other possibilities:
+
+    It is possible to perform some kind of integration over time in order
+    to give a more studio-like response but will likely to impose a heavy
+    penalty on processing time.
+
+    Peak values with hold.
+
+*/
+

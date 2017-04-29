@@ -1,0 +1,156 @@
+//  ===========================================================================
+//  Functional description of the ADC registers.
+//  ===========================================================================
+/*
+  The ADC behaviour is defined by a number of internal registers:
+
+    ,---------------------------------------,
+    | Register | Description                |
+    |----------+----------------------------|
+    | ADCSRA   | ADC Control and Status A.  |
+    | ADCSRB   | ADC Control and Status B.  |
+    | ADMUX    | ADC Multiplexer Selection. |
+    | DIDR0    | Digital Input Disable.     |
+    | ADCH     | ADC Data (High).           |
+    | ADCL     | ADC Data (Low).            |
+    '---------------------------------------' 
+
+    ADCSRA register:
+    ,---------------------------------------------------------------,
+    |   7   |   6   |   5   |   4   |   3   |   2   |   1   |   0   |
+    |-------+-------+-------+-------+-------+-------+-------+-------|
+    | ADEN  | ADSC  | ADATE | ADIF  | ADIE  | ADPS2 | ADPS1 | ADPS0 |
+    '---------------------------------------------------------------'
+    ADEN  (ADC Enable): 1 = enable, 0 = disable.
+    ADSC  (ADC Start Conversion): 1 = start, auto set to zero on completion.
+    ADATE (ADC Auto Trigger Enable): 1 = enable, 0 = disable.
+    ADIF  (ADC Interrupt Flag): Set by hardware.
+    ADIE  (ADC Interrupt Enable): 1 = enable, 0 = disable.
+    ADPS  (ADC Prescaler Select Bits): 0-2 used to set clock frequency. 
+
+    ,-----------------,
+    |   ADPSn   | Div |
+    | 2 | 1 | 0 |     |
+    |---+---+---+-----|
+    | 0 | 0 | 0 |   2 |
+    | 0 | 0 | 1 |   2 |
+    | 0 | 1 | 0 |   4 |
+    | 0 | 1 | 1 |   8 |
+    | 1 | 0 | 0 |  16 |
+    | 1 | 0 | 1 |  32 |
+    | 1 | 1 | 0 |  64 |
+    | 1 | 1 | 1 | 128 |
+    '-----------------'
+
+    ADCSRB register:
+    ,---------------------------------------------------------------,
+    |   7   |   6   |   5   |   4   |   3   |   2   |   1   |   0   |
+    |-------+-------+-------+-------+-------+-------+-------+-------|
+    |   -   | ACME  |   -   |   -   |   -   | ADTS2 | ADTS1 | ADTS0 |
+    '---------------------------------------------------------------'
+
+    ACME (Analog Comparator Mux Enable): 1 = enable, 0 = disable.
+    ADTSn (ADC Auto Trigger Source):
+    ,---------------------------------------------,
+    |   ADTSn   | Trigger Select.                 |
+    | 2 | 1 | 0 |                                 |
+    |---+---+---+---------------------------------|
+    | 0 | 0 | 0 | Free Running.                   |
+    | 0 | 0 | 1 | Analog Comparator.              |
+    | 0 | 1 | 0 | External Interrupt Request 0.   |
+    | 0 | 1 | 1 | Timer/Counter0 Compare Match A. |
+    | 1 | 0 | 0 | Timer/Counter0 Overflow.        |
+    | 1 | 0 | 1 | Timer/Counter1 Compare Match B. |
+    | 1 | 1 | 0 | Timer/Counter1 Compare Match A. |
+    | 1 | 1 | 1 | Timer/Counter1 Capture Event.   |
+    '---------------------------------------------'
+
+    ADMUX register:
+    ,---------------------------------------------------------------,
+    |   7   |   6   |   5   |   4   |   3   |   2   |   1   |   0   |
+    |-------+-------+-------+-------+-------+-------+-------+-------|
+    | REFS1 | REFS0 | ADLAR |   -   | MUX3  | MUX2  | MUX1  | MUX0  |
+    '---------------------------------------------------------------'
+
+    REFSn (Set reference voltage):
+    ,-----------------------------------------------------------,
+    | REFSn |                                                   |
+    | 1 | 0 | Vref selection.                                   |
+    |---+---+---------------------------------------------------|
+    | 0 | 0 | AREF, Internal Vref turned off.                   |
+    | 0 | 1 | AVcc with external cap on AREF pin.               |
+    | 1 | 0 | Reserved.                                         |
+    | 1 | 1 | Internal 1.1V (ATmega168/328) or 2.56V (ATmega8). |
+    '-----------------------------------------------------------'
+
+    ADLAR (ADC Left Adjust Result):
+    ,------------------------------------------------------------------------,
+    | ADLAR |           ADCH                ||           ADCL                |
+    |       | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 || 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+    |-------+---+---+---+---+---+---+---+---++---+---+---+---+---+---+---+---|
+    |   0   | - | - | - | - | - | - | * | * || * | * | * | * | * | * | * | * |
+    |   1   | * | * | * | * | * | * | * | * || * | * | - | - | - | - | - | - |
+    '------------------------------------------------------------------------'
+
+    MUXn (Analog Channel Selection Bits): Select analog ports ADC0-ADC5.
+    ,-----------------------,
+    |      MUXn     | Input |
+    | 3 | 2 | 1 | 0 |       |
+    |---+---+---+---+-------|
+    | 0 | 0 | 0 | 0 | ADC0  |
+    | 0 | 0 | 0 | 1 | ADC1  |
+    | 0 | 0 | 1 | 0 | ADC2  |
+    | 0 | 0 | 1 | 1 | ADC3  |
+    | 0 | 1 | 0 | 0 | ADC4  |
+    | 0 | 1 | 0 | 1 | ADC5  |
+    '-----------------------'
+    
+    DIDR0 register:
+    ,---------------------------------------------------------------,
+    |   7   |   6   |   5   |   4   |   3   |   2   |   1   |   0   |
+    |-------+-------+-------+-------+-------+-------+-------+-------|
+    |   -   |   -   | ADC5D | ADC4D | ADC3D | ADC2D | ADC1D | ADC0D |
+    '---------------------------------------------------------------'
+    When set, the corresponding digital input buffer is disabled.
+
+    DIDR1 register:
+    ,---------------------------------------------------------------,
+    |   7   |   6   |   5   |   4   |   3   |   2   |   1   |   0   |
+    |-------+-------+-------+-------+-------+-------+-------+-------|
+    |   -   |   -   |   -   |   -   |   -   |   -   | AIN1D | AIN0D |
+    '---------------------------------------------------------------'
+    When set, the corresponding digital input buffer is disabled.
+*/
+//  ADC Frequency -------------------------------------------------------------
+/*
+    The Arduino ADC runs at a clock rate determined by the divisor, which is
+    set to 64 by default, i.e. the ADC runs at 1/64 of the full clock rate.
+    The divisor is set by the ADPSn registers:
+
+    Typical audio range = 20Hz - 20kHz (Target is 20kHz).
+    Nyquist Frequency >= 2 * Max signal frequency = 40kHz.
+
+    Arduino clock = 16MHz.
+    ADC capture takes 13 cycles.
+    Therefore approx sampling bandwidth = 16000000/(div*13)
+
+            ,--------------------------------------,
+            |   ADPSn   | Div | ADC Freq | Sample  |
+            | 2 | 1 | 0 |     |   (Hz)   |  time   |
+            |---+---+---+-----+----------|---------|
+            | 0 | 0 | 0 |   2 |  615385  | 1.625us |
+            | 0 | 0 | 1 |   2 |  615385  | 1.625us |
+            | 0 | 1 | 0 |   4 |  307692  | 3.250us |
+            | 0 | 1 | 1 |   8 |  153846  | 6.500us |
+            | 1 | 0 | 0 |  16 |   76923  | 0.013ms |<- Should be ok!
+            | 1 | 0 | 1 |  32 |   38462  | 0.026ms |
+            | 1 | 1 | 0 |  64 |   19231  | 0.052ms |
+            | 1 | 1 | 1 | 128 |    9615  | 0.104ms |
+            '--------------------------------------'
+
+	While the ADC capture takes 13 cycles, any other cycles taken up in
+	processing the data will also have an impact. On paper, a divisor of 16
+	should be ok, but a divisor of 8 would be better, although the accuracy
+	drops off with increasing frequency.
+*/
+
