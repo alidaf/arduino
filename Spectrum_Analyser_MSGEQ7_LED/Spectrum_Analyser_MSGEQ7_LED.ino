@@ -55,19 +55,24 @@
 #define LED_SCALE        1 // Scale factor for MSGEQ7 output.
 #define LED_GAP          2 // Number of LEDS skipped between channels.
 #define LED_COUNT       17 // Number of LEDS representing each band.
-#define LED_HOLD        20 // Number of cycles to sustain peak values.
-#define LED_DECAY        5 // Number of cycles before dropping peak level.
+#define LED_HOLD        30 // Number of cycles to sustain peak values.
+#define LED_DECAY        2 // Number of cycles before dropping peak level.
 #define LED_NUM MSGEQ7_CHANNELS * MSGEQ7_BINS * LED_COUNT + LED_GAP
 
 //  Colours -------------------------------------------------------------------
-
+/*
 #define RED   0xff0000
 #define GREEN 0x00ff00
 #define BLUE  0x0000ff
 #define AMBER 0xfeff00
 #define GREY1 0xf0f0f0
+#define GREY2 0x0f0f0f
 #define BLACK 0x000000
-
+*/
+#define COLOUR_BASE GREEN // Base level colour.
+#define COLOUR_PEAK RED   // Peak level colour.
+#define COLOUR_HOLD BLUE  // Peak hold colour.
+#define COLOUR_VOID BLACK // Void colour.
 //  ADC -----------------------------------------------------------------------
 
 #define ADC_CHANNELS 6 // Maximum number of ADC channels.
@@ -86,6 +91,7 @@
 #include <LiquidCrystal.h>
 #include <TimerOne.h>
 #include <Adafruit_NeoPixel.h>
+#include "Colours.h"
 
 //  ===========================================================================
 //  Global variables.
@@ -254,16 +260,26 @@ void setup( void )
 
   // Set up colour table for vertical meter scale.
   uint16_t i;
-  uint32_t red, grn, blu;
+  uint16_t  r1, r2, g1, g2, b1, b2; // Need to be
+  uint32_t  r, g, b;
 
-  // Set up colour reference.
+  r1 = ( COLOUR_BASE >> 16 ) & 0x00ff;
+  r2 = ( COLOUR_PEAK >> 16 ) & 0x00ff;
+  g1 = ( COLOUR_BASE >>  8 ) & 0x00ff;
+  g2 = ( COLOUR_PEAK >>  8 ) & 0x00ff;
+  b1 = ( COLOUR_BASE >>  0 ) & 0x00ff;
+  b2 = ( COLOUR_PEAK >>  0 ) & 0x00ff;
+
+  // Need to add weight factors to bias RGB colours.
+  
   for ( i = 0; i < LED_COUNT; i++ )
   {
-    red = i * 0xff / ( LED_COUNT - 1);
-    grn = ( LED_COUNT - i - 1 ) * 0xff / ( LED_COUNT - 1 );
-    blu = 0x00;
-    LED_colours[i] = (( red << 16 ) & 0xff0000 ) + 
-                     (( grn <<  8 ) & 0x00ff00 ) + blu;
+    r = r1 + i * ( r2 - r1 ) / ( LED_COUNT - 1 );
+    g = g1 + i * ( g2 - g1 ) / ( LED_COUNT - 1 );
+    b = b1 + i * ( b2 - b1 ) / ( LED_COUNT - 1 );
+    LED_colours[i] = (( r << 16 ) & 0xff0000 ) + 
+                     (( g <<  8 ) & 0x00ff00 ) + 
+                     (( b <<  0 ) & 0x0000ff );
   }
 
   if ( DEBUG )
@@ -279,29 +295,29 @@ void setup( void )
 
   // Basic LED test - light up first 3 LEDs.
   leds.setPixelColor( 0, GREEN );
-  leds.setPixelColor( 1, AMBER );
+  leds.setPixelColor( 1, YELLOW );
   leds.setPixelColor( 2, RED );
   leds.show();
   delay( 1000 );
 
   for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, RED );  
+  leds.setPixelColor( i, COLOUR_BASE );  
   leds.show();
   delay( 1000 );
 
   for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, AMBER );  
+  leds.setPixelColor( i, COLOUR_PEAK );  
   leds.show();
   delay( 1000 );
 
   for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, GREEN );  
+  leds.setPixelColor( i, COLOUR_HOLD );  
   leds.show();
   delay( 1000 );
 
   // Wipe LED strip.
   for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, BLACK );  
+  leds.setPixelColor( i, COLOUR_VOID );  
   leds.show();
   delay( 50 );
 
@@ -333,7 +349,6 @@ void MSGEQ7_get_data( void )
 
   uint8_t  adcl, adch;
   uint16_t adcx;
-  uint16_t peak;
 
   // Reset MSGEQ7.
   bitset( PORTD, MSGEQ7_RESET );
@@ -359,7 +374,7 @@ void MSGEQ7_get_data( void )
       
     }
     bitset( PORTD, MSGEQ7_STROBE );
-    delayMicroseconds( 40 );
+    delayMicroseconds( 10 );
 
   }
 }
@@ -477,10 +492,10 @@ void LED_update( void )
       for ( pos = mean; pos < LED_COUNT; pos++ )
       {
         // Turn off blank LEDs.
-        leds.setPixelColor(( index + pos ), BLACK );
+        leds.setPixelColor(( index + pos ), COLOUR_VOID );
       }
       // Add peak level
-      leds.setPixelColor(( index + peak ), BLUE );
+      leds.setPixelColor(( index + peak ), COLOUR_HOLD );
     }
 //    base = base + LED_GAP;
   }
