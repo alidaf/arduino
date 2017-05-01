@@ -57,6 +57,7 @@
 #define LED_COUNT       17 // Number of LEDS representing each band.
 #define LED_HOLD        30 // Number of cycles to sustain peak values.
 #define LED_DECAY        2 // Number of cycles before dropping peak level.
+#define LED_DEVICE WS2812B // FastLED device name.
 #define LED_NUM MSGEQ7_CHANNELS * MSGEQ7_BINS * LED_COUNT + LED_GAP
 
 //  Colours -------------------------------------------------------------------
@@ -90,7 +91,7 @@
 #include <Arduino.h>
 #include <LiquidCrystal.h>
 #include <TimerOne.h>
-#include <Adafruit_NeoPixel.h>
+#include <FastLED.h>
 #include "Colours.h"
 
 //  ===========================================================================
@@ -111,9 +112,7 @@ const byte admux[ADC_CHANNELS] = { ADC0D, ADC1D, ADC2D, ADC3D, ADC4D, ADC5D };
   #define MSGEQ7_CHANNELS ADC_CHANNELS
 #endif
 
-Adafruit_NeoPixel leds = Adafruit_NeoPixel( LED_NUM,
-                                            LED_DATA,
-                                            NEO_GRB + NEO_KHZ800);
+CRGB leds[LED_NUM];
 
 byte brightness = LED_BRIGHT;  // Set initial LED brightness.
 long refresh    = LED_REFRESH; // Set initial time (uS) between updates.
@@ -235,8 +234,7 @@ void setup( void )
   if ( DEBUG ) Serial.println( "ADC Registers set." );
 
   // Clear MSGEQ7 buffers.
-  memset( (void *) MSGEQ7_data, 0, sizeof( MSGEQ7_data ));
-//  memset( (void *) MSGEQ7_peak, 0, sizeof( MSGEQ7_peak ));
+  memset( (void *) MSGEQ7_data,    0, sizeof( MSGEQ7_data ));
   memset( (void *) LED_mean_level, 0, sizeof( LED_mean_level ));
   memset( (void *) LED_peak_level, 0, sizeof( LED_peak_level ));
   memset( (void *) LED_peak_count, 0, sizeof( LED_peak_count ));
@@ -251,10 +249,9 @@ void setup( void )
   if ( DEBUG ) Serial.println( "MSGEQ7 initialised." );
 
   // Initialise LED strip.
-  leds.begin();
-  leds.setBrightness( brightness );
-  leds.show();
-  delay( 100 );
+//  delay( 3000 ); // Safety delay for power-up.
+  FastLED.addLeds<LED_DEVICE, LED_DATA, RGB>( leds, LED_NUM );
+  FastLED.setBrightness( LED_BRIGHT );
 
   if ( DEBUG ) Serial.println( "LED strip initialised." );
 
@@ -263,12 +260,12 @@ void setup( void )
   uint16_t  r1, r2, g1, g2, b1, b2; // Need to be
   uint32_t  r, g, b;
 
-  r1 = ( COLOUR_BASE >> 16 ) & 0x00ff;
-  r2 = ( COLOUR_PEAK >> 16 ) & 0x00ff;
-  g1 = ( COLOUR_BASE >>  8 ) & 0x00ff;
-  g2 = ( COLOUR_PEAK >>  8 ) & 0x00ff;
-  b1 = ( COLOUR_BASE >>  0 ) & 0x00ff;
-  b2 = ( COLOUR_PEAK >>  0 ) & 0x00ff;
+  r1 = ( COLOUR_PEAK >> 16 ) & 0x00ff;
+  r2 = ( COLOUR_BASE >> 16 ) & 0x00ff;
+  g1 = ( COLOUR_PEAK >>  8 ) & 0x00ff;
+  g2 = ( COLOUR_BASE >>  8 ) & 0x00ff;
+  b1 = ( COLOUR_PEAK >>  0 ) & 0x00ff;
+  b2 = ( COLOUR_BASE >>  0 ) & 0x00ff;
 
   // Need to add weight factors to bias RGB colours.
   
@@ -294,31 +291,31 @@ void setup( void )
   }
 
   // Basic LED test - light up first 3 LEDs.
-  leds.setPixelColor( 0, GREEN );
-  leds.setPixelColor( 1, YELLOW );
-  leds.setPixelColor( 2, RED );
-  leds.show();
+  leds[0] = GREEN;
+  leds[1] = YELLOW;
+  leds[2] = RED;
+  FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, COLOUR_BASE );  
-  leds.show();
+  for ( i = 0; i < LED_NUM; i++ )
+  leds[i] = COLOUR_BASE;
+  FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, COLOUR_PEAK );  
-  leds.show();
+  for ( i = 0; i < LED_NUM; i++ )
+  leds[i] = COLOUR_PEAK;
+  FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, COLOUR_HOLD );  
-  leds.show();
+  for ( i = 0; i < LED_NUM; i++ )
+  leds[i] = COLOUR_HOLD;
+  FastLED.show();
   delay( 1000 );
 
   // Wipe LED strip.
-  for ( i = 0; i < leds.numPixels(); i++ )
-  leds.setPixelColor( i, COLOUR_VOID );  
-  leds.show();
+  for ( i = 0; i < LED_NUM; i++ )
+  leds[i] = COLOUR_VOID;
+  FastLED.show();
   delay( 50 );
 
   if ( DEBUG )
@@ -487,19 +484,19 @@ void LED_update( void )
 
       for ( pos = 0; pos < mean; pos++ )
       {        
-          leds.setPixelColor(( index + pos ), LED_colours[pos] );
+        leds[index + pos] = LED_colours[pos];
       }
       for ( pos = mean; pos < LED_COUNT; pos++ )
       {
         // Turn off blank LEDs.
-        leds.setPixelColor(( index + pos ), COLOUR_VOID );
+        leds[index + pos] = COLOUR_VOID;
       }
       // Add peak level
-      leds.setPixelColor(( index + peak ), COLOUR_HOLD );
+      leds[index + peak] = COLOUR_HOLD;
     }
-//    base = base + LED_GAP;
   }
-  leds.show();
+//  leds.show();
+  FastLED.show();
   delay( 20 );
 }
 
