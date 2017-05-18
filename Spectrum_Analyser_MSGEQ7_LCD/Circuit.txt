@@ -3,166 +3,90 @@
 //  ===========================================================================
 /*
 
-    The L channel is read in through ADC0.
-    The R channel is read in through ADC1.
-    Output to the WS2812 LED strip is sent from digital pin PD7
+//  Circuit -------------------------------------------------------------------
 
-	Note:
+    This is the audio input section of the circuit.  The strobe and reset pins
+    of the MSGEQ7s are tied together.
 
-		The ADC input impedance should be 10k or lower.
+    +5V-----------------,---------------------------------------------------+5V
+                        |
+                        |                          C2
+                        |         L         ,------||------,
+                    C1  |     ,-------,     |              |
+                ,---||--'----o[1  -  8]o----'----[ R1 ]----|
+                |             [   M   ]                    |
+                |------------o[2  S  7]o-------------------(---,
+                |             [   G   ]     C3             |   |
+        ,-------(------------o[3  E  6]o----||-------------|   |
+        |       |             [   Q   ]                    |   |
+        |   ,---(------------o[4  7  5]o----||---[ R2 ]----(---(--Audio In (L)
+        |   |   |             '-------'     C4             |   |
+        |   |   |                                          |   |
+        '---(---(------------------------------------------(---(----ADC0
+            |   |                                          |   |
+            |   |                                  C6      |   |
+            |   |	              R         ,------||------|   |
+            |   |   C5        ,-------,     |              |   |
+            |	|---||-------o[1  -  8]o----'----[ R3 ]----|   |
+            |   |             [   M   ]                    |   |
+            |	|------------o[2  S  7]o-------------------(---'----D7
+            |   |             [   G   ]     C7             |
+        ,---(---(------------o[3  E  6]o----||-------------|
+        |   |   |             [   Q   ]                    |
+        |   |---(------------o[4  7  5]o----||---[ R4 ]----(------Audio In (R)
+        |   |   |             '-------'     C8             |
+        |   |   |                                          |
+        '---(---(------------------------------------------(--------ADC1
+           |    |                                          |
+           |    |                                          |
+           '----(------------------------------------------(--------D6
+                |         
+                |
+    GND---------'-----------------------------------------------------------GND
 
-//  Circuit 1 -----------------------------------------------------------------
 
-    This is the most basic circuit needed to sample from an audio source such
-    as a headphone socket. There is no circuit gain and even on high volumes
-    there will be insufficient signal to give a full range of output.
+    The LCD section of the circuit is pretty basic.
 
-      +5V-----------------,---,---------------+5V
-                          |   |
-                          |   |
-                        [R1] [R3]
-      Audio               |   |         Arduino
-                  C1      |   |           [
-        L o-------||------+---(------ADC0-[A0
-                          |   |           [
-        R o-------||------(---+------ADC1-[A1
-                  C2      |   |           [
-      GND o----,          |   |
-               |        [R2] [R4]
-               |          |   |
-               |          |   |
-      GND------'----------'---'---------------GND
 
-      ,-------,--------,-------,
-      |   n   |   R    |   C   |
-      |-------+--------+-------|
-      |   1   | 10kOhm |  1uF  |
-      |   2   | 10kOhm |  1uF  |
-      |   3   | 10kOhm |       |
-      |   4   | 10kOhm |       |
-      '-------'--------'-------'
+    +5V---------------------------------------------------------------------+5V
+                |               |
+                |               |
+        LCD     |   ,---[R5 ]---'
+        Vss o---'   |     |
+        Vdd o-------'     |
+        V0  o-------------'             Arduino
+        RS  o---------------------------- D12
+        RW  o-------,
+        E   o-------(-------------------- D11
+        D0  o-x     (
+        D1  o-x     (
+        D2  o-x     (
+        D3  o-x     (
+        D4  o-------(-------------------- D5
+        D5  o-------(-------------------- D4
+        D6  o-------(-------------------- D3
+        D7  o-------(-------------------- D2
+                    |
+                    |
+    GND---------------------------------------------------------------------GND
+
+        ,--------------------------,
+        |   n   |    R    |    C   |
+        |-------+---------+--------|
+        |   1   | 200kOhm |  0.1uF |
+        |   2   |  22kOhm |   33pF |
+        |   3   | 200kOhm |  0.1uF |
+        |   4   |  22kOhm |  0.1uF |
+        |   5   |   5kOhm |  0.1uF |
+        |   6   |         |   33pF |
+        |   7   |         |  0.1uF |
+        |   8   |         |  0.1uF |
+        '--------------------------'
 
     Notes:
 
-    C1/C2 are coupling capacitors to remove the DC component, but form a
-    high-pass filter circuit with the resistor network.
+    R5 adjusts the LCD contrast.
  
-    Input impedance, Z = R1||R2 & R3||R4, = 5kOhms.
-    Filter corner frequency, fc = 1/(2*pi*Z*C1), = 31.8Hz.
-
-
-//  Circuit 2 -----------------------------------------------------------------
-
-    This is a slightly more advanced circuit that provides gain that can
-    be adjusted by changing the values of R5/R6 and R7/R8.
-
-      +5V-----------,---,---------------------------------------------+5V
-                    |   |
-                    |   |                ,----[R6]----,
-                    |   |                |            |
-                  [R1] [R3]    C3        |  |\        |
-                    |   |   ,--||--[R5]--'--|+ \      |        Arduino
-                    |   |   |   +           |    \    |
-                    |   |   |               |     |---'--------ADC0-[A0
-               C1   |   |   |               |    /                  [ 
-            ,--||---+---(---(---------------|- /                    [
-            |       |   |   |               |/                      [
-            |       |   |   |                                       [
-            |       |   |   |                ,----[R8]----,         [
-            |       |   |   |                |            |         [
-            |       |   |   |      C4        |  |\        |         [
-      Audio |       |   |   |   ,--||--[R7]--'--|+ \      |         [
-            |       |   |   |   |   +           |    \    |         [
-        L o-'       |   |   |   |               |     |---'----ADC1-[A1
-                    |   |   |   |               |    /
-        R o----||---(---+---(---(---------------|- /
-               C2   |   |   |   |               |/
-      GND o----,    |   |   |   |
-               |  [R2] [R4] |   |
-               |    |   |   |   |
-               |    |   |   |   |
-      GND-----------'---'---'---'-------------------------------------GND
-
-      ,-------,---------,--------,
-      |   n   |   R     |   C    |
-      |-------+---------+--------|
-      |   1   | 10kOhm  |  1uF   |
-      |   2   | 10kOhm  |  1uF   |
-      |   3   | 10kOhm  |  4.7uF |
-      |   4   | 10kOhm  |  4.7uF |
-      |   5   | 2.2kOhm |        |
-      |   6   | 10kOhm  |        |
-      |   7   | 2.2kOhm |        |
-      |   8   | 10kOhm  |        |
-      '-------'---------'--------'
-
-	Notes:
-
-	Gain = (1 + R6/R5) and (1 + R8/R7) = 5.5 for the tabulated values.
-    Input impedance, Z = R1||R2 & R3||R4, = 5kOhms.
-	Input impedance to the ADC pins is based on the op-amp.
-    Filter corner frequency, fc1 = 1/(2*pi*R5*C3) = 15.4Hz.
-    Filter corner frequency, fc2 = 1/(2*pi*Z*C1) = 31.8Hz.
-
-    I used a MCP6022, which is a 5V rail-to-rail dual op-amp that seems to work
-    quite well but too much gain can saturate the ADC signal and increase the
-    magnitude of folded frequencies caused by undersampling.
-
-    The gain can be adjusted by replacing R5 and R7 with potentiometers and
-    adjusted them until a suitable level of gain is achieved.
-
-
-//  Enhancements --------------------------------------------------------------
-
-	Since the ADC reads each channel sequentially until the buffer is full, the
-    data is pretty well spaced so windowing isn't necessary. In fact, turning
-    it off removed some of the bleeding that was especially apparent in the
-    peaks of the first 2 bins.
-
-    The value of the 1st bin of the FHT output can sometimes be very high. This
-    is caused by a residual DC offset and can be eliminated with a more 
-    accurate voltage divider. Resistor quality can vary enough that the offset
-    is not accurately at the mid-point. Some fine tuning can be made by tapping
-    the wiper of a potentiometer between the divider resistors, e.g.:
-
-
-      +5V-----------------,------,---------------+5V
-                          |      |
-                          |      |
-                        [R1]    [R3]
-                          |      |         Arduino
-                   C1     |      |              [
-      Audio    ,---||-----(---,--(---------ADC0-[A0
-               |          |   |  |              [
-        L o----'        [  ]  |  |              [
-                        [R5]--'  |              [
-        R o----,        [  ]     |              [
-               |          |      |              [
-      GND o--, '---||-----(------(----,----ADC1-[A1
-             |     C2     |      |    |         [
-             |            |     [  ]  |
-             |            |     [R6]--'
-             |            |     [  ]
-             |            |      |
-             |            |      |
-             |          [R2]    [R4]
-             |            |      |
-             |            |      |
-      GND----'------------'------'---------------GND
-
-    Ideally R5 and R6 should be quite a bit smaller than R1/R2 & R3/R4 to
-    provide a fine grained adjustment. With no signal, adjust the pots until
-    the peak of bin 1 diminishes to the noise floor. I tried 10k pots with
-    100k resistors in the op-amp circuit and it worked very well. Without the
-    op-amp, the input impedance would be a bit high and potentially noisier.
-    I don't have any 1k pots but I think these would be ideal in the basic
-    circuit, retaining the 10k divider resistors.
-
-   It may even be possible to remove the divider resistors entirely in favour
-   of good quality multi-turn pots, or even digital pots, but let's keep this
-   within the realm of mortal hobbyists!
-
-
 */
 
 
