@@ -91,8 +91,6 @@
 //  ===========================================================================
 
 #include <Arduino.h>
-#include <LiquidCrystal.h>
-#include <TimerOne.h>
 #include <FastLED.h>
 
 //  ===========================================================================
@@ -239,7 +237,7 @@ void setup( void )
   memset( (void *) LED_mean_level, 0, sizeof( LED_mean_level ));
   memset( (void *) LED_peak_level, 0, sizeof( LED_peak_level ));
   memset( (void *) LED_peak_count, 0, sizeof( LED_peak_count ));
-  memset( (void *) LED_hold_count, 0, sizeof( LED_peak_count ));
+  memset( (void *) LED_hold_count, 0, sizeof( LED_hold_count ));
 
   if ( DEBUG ) Serial.println( "ADC buffers cleared." );
 
@@ -483,18 +481,9 @@ void LED_update( void )
       mean = LED_mean_level[channel][bin];
       peak = LED_peak_level[channel][bin];
 
-//      for ( pos = 0; pos < mean; pos++ )
-//      {        
-//        leds[index + pos] = LED_colours[pos];
-//      }
       fill_gradient_RGB( leds, index, COLOUR_BASE, 
                                index + LED_COUNT - 1, COLOUR_PEAK );
 
-//      for ( pos = mean; pos < LED_COUNT; pos++ )
-//      {
-//        // Turn off blank LEDs.
-//        leds[index + pos] = COLOUR_VOID;
-//      }
       fill_solid( &( leds[index+mean] ), LED_COUNT - mean, COLOUR_VOID );
 
       // Add peak level
