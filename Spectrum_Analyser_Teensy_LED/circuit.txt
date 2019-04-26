@@ -1,0 +1,114 @@
+/* -----------------------------------------------------------------------------
+
+    Circuit diagram for Teensy/Audio shield/OctoWS2811 spectrum analyser.
+
+    Note: The audio shield and OctoWS2811 shield weren't designed to work
+          together but by avoiding specific connections, the two will
+          work although without the functionality of the SD card slot on the
+          audio shield. A combination of stackable headers and pins can be
+          used with the specific connections made on the audio shield as
+          follows:
+
+                    .....  .......
+    Audio shield   ================  Inverted socket headers
+                    nnnnn  nnnnnnn
+
+                    ..............
+    Teensy      USB================  Pins soldered on the long side.
+                    ||||||||||||||
+                                    ,----,
+                                    |    |
+                    uuuuuuuuuuuuuu  |    |
+    OctoWS2811     ======================= Stackable female headers.
+                    ''''''''''''''
+
+    o connected
+    x not connected
+
+    Audio shield:     Teensy:          OctoWS211:
+
+    o GND  5V o       o GND  5V o      o GND  5V o
+    o 0     G o       o 0     G o      o 0     G o
+    o 1    3V o       o 1    3V o      o 1    3V o
+    x 2    23 o       o 2    23 o      o 2    23 o
+    x 3    22 o       o 3    22 o      o 3    22 o
+    x 4    21 x       o 4    21 o      o 4    21 o
+    x 5    20 x       o 5    20 o      o 5    20 o
+    x 6    19 o       o 6    19 o      o 6    19 o
+    x 7    18 o       o 7    18 o      o 7    18 o
+    x 8    17 o       o 8    17 o      o 8    17 o
+    o 9    16 x       o 9    16 o      o 9    16 o
+    o 10   15 x       o 10   15 o      o 10   15 o
+    o 11   14 x       o 11   14 o      o 11   14 o
+    x 12   13 o       o 12   13 o      o 12   13 o
+
+
+    All power supply and LED connections are on the OctoWS2811 board.
+
+    Note: The external power supply and the 5V USB supply must 
+          be decoupled if connected at the same time otherwise 
+          the USB may be backpowered. This is done by severing
+          the bridge on the Teensy. See the advice at
+          https://www.pjrc.com/teensy/td_libs_OctoWS2811.html Section
+          Teensy 3.0 Power.
+          Unfortunately this means that the external power supply needs to be
+          connected in order to program the Teensy.
+
+          The LED numbering is contiguous and based on the method
+          constructor that requires the number of LEDs per strip to
+          be passed as a parameter. 
+          See https://www.pjrc.com/teensy/td_libs_OctoWS2811.html
+
+          n = number of LEDs per strip.
+          
+    Power supply                OctoWS2811 power terminal
+      +5V GND                  +5V GND SYNC
+       o   o                    o   o   x
+       |   |                    |   |
+       |   '--------------------(---| GND should be as close to the LED
+       '------------------------|   | GND connection as possible.
+                                |   |
+     Ethernet sockets           |   |
+    ,-----------------,         |   |
+    |                 |         |---(------------o +5V
+    | 1 Orange        o---------(---(------------o Data (LED 0 -> n-1)
+    |   White/Orange  o---------(---+------------o GND
+    |                 |         |   |
+    |                 |         |---(------------o +5V
+    | 2 Blue          o---------(---(------------o Data (LED n -> 2n-1)
+    |   White/Blue    o---------(---+------------o GND  
+    |                 |         |   |
+    |                 |         |---(------------o +5V
+    | 3 Green         o---------(---(------------o Data (LED 2n -> 3n-1)
+    |   White/Green   o---------(---+------------o GND   
+    |                 |         |   |
+    |                 |         |---(------------o +5V
+    | 4 Brown         o---------(---(------------o Data (LED 3n -> 4n-1)
+    |   White/Brown   o---------(---+------------o GND   
+    |                 |         |   |
+    |-----------------|         |   |
+    |                 |         |---(------------o +5V
+    | 5 Orange        o---------(---(------------o Data (LED 4n -> 5n-1)
+    |   White/Orange  o---------(---+------------o GND
+    |                 |         |   |
+    |                 |         |---(------------o +5V
+    | 6 Blue          o---------(---(------------o Data (LED 5n -> 6n-1)
+    |   White/Blue    o---------(---+------------o GND  
+    |                 |         |   |
+    |                 |         |---(------------o +5V
+    | 7 Green         o---------(---(------------o Data (LED 6n -> 7n-1)
+    |   White/Green   o---------(---+------------o GND   
+    |                 |         |   |
+    |                 |         '---(------------o +5V
+    | 8 Brown         o-------------(------------o Data (LED 7n -> 8n-1)
+    |   White/Brown   o-------------+------------o GND   
+    |                 |
+    '-----------------'
+
+    Note: Multiple power supplies may be needed if there are a lot of LEDs.
+          A good guide to calculating power requirements is here...
+          https://docs.audectra.com/guides/hardware/led-power-consumption/
+
+          I am currently running a 5m 240 led strip with a 60W supply.
+
+*/ -----------------------------------------------------------------------------
