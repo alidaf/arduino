@@ -49,6 +49,7 @@
 
 // Note pins 0-7 are on PORTD while pins 8-13 are on PORTB.
 #define LED_DATA        10 // Data pin for WS2812 LED strip.
+#define LED_COLOUR     GRB // Colour order for LED strip.
 
 #define LED_BRIGHT       5 // Initial LED brightness.
 #define LED_REFRESH   5000 // Initial refresh time for LEDs (us).
@@ -70,10 +71,11 @@
 #define GREY2 0x0f0f0f
 #define BLACK 0x000000
 */
-#define COLOUR_BASE GREEN // Base level colour.
-#define COLOUR_PEAK RED   // Peak level colour.
-#define COLOUR_HOLD BLUE  // Peak hold colour.
-#define COLOUR_VOID BLACK // Void colour.
+#define COLOUR_BASE CRGB::Green // Base level colour.
+#define COLOUR_PEAK CRGB::Red   // Peak level colour.
+#define COLOUR_HOLD CRGB::Blue  // Peak hold colour.
+#define COLOUR_VOID CRGB::Black // Void colour.
+
 //  ADC -----------------------------------------------------------------------
 
 #define ADC_CHANNELS 6 // Maximum number of ADC channels.
@@ -89,10 +91,7 @@
 //  ===========================================================================
 
 #include <Arduino.h>
-#include <LiquidCrystal.h>
-#include <TimerOne.h>
 #include <FastLED.h>
-#include "Colours.h"
 
 //  ===========================================================================
 //  Global variables.
@@ -238,7 +237,7 @@ void setup( void )
   memset( (void *) LED_mean_level, 0, sizeof( LED_mean_level ));
   memset( (void *) LED_peak_level, 0, sizeof( LED_peak_level ));
   memset( (void *) LED_peak_count, 0, sizeof( LED_peak_count ));
-  memset( (void *) LED_hold_count, 0, sizeof( LED_peak_count ));
+  memset( (void *) LED_hold_count, 0, sizeof( LED_hold_count ));
 
   if ( DEBUG ) Serial.println( "ADC buffers cleared." );
 
@@ -250,7 +249,7 @@ void setup( void )
 
   // Initialise LED strip.
 //  delay( 3000 ); // Safety delay for power-up.
-  FastLED.addLeds<LED_DEVICE, LED_DATA, RGB>( leds, LED_NUM );
+  FastLED.addLeds<LED_DEVICE, LED_DATA, LED_COLOUR>( leds, LED_NUM );
   FastLED.setBrightness( LED_BRIGHT );
 
   if ( DEBUG ) Serial.println( "LED strip initialised." );
@@ -260,12 +259,12 @@ void setup( void )
   uint16_t  r1, r2, g1, g2, b1, b2; // Need to be
   uint32_t  r, g, b;
 
-  r1 = ( COLOUR_PEAK >> 16 ) & 0x00ff;
-  r2 = ( COLOUR_BASE >> 16 ) & 0x00ff;
-  g1 = ( COLOUR_PEAK >>  8 ) & 0x00ff;
-  g2 = ( COLOUR_BASE >>  8 ) & 0x00ff;
-  b1 = ( COLOUR_PEAK >>  0 ) & 0x00ff;
-  b2 = ( COLOUR_BASE >>  0 ) & 0x00ff;
+  r1 = ( COLOUR_BASE >> 16 ) & 0x00ff;
+  r2 = ( COLOUR_PEAK >> 16 ) & 0x00ff;
+  g1 = ( COLOUR_BASE >>  8 ) & 0x00ff;
+  g2 = ( COLOUR_PEAK >>  8 ) & 0x00ff;
+  b1 = ( COLOUR_BASE >>  0 ) & 0x00ff;
+  b2 = ( COLOUR_PEAK >>  0 ) & 0x00ff;
 
   // Need to add weight factors to bias RGB colours.
   
@@ -291,30 +290,30 @@ void setup( void )
   }
 
   // Basic LED test - light up first 3 LEDs.
-  leds[0] = GREEN;
-  leds[1] = YELLOW;
-  leds[2] = RED;
+  leds[0] = CRGB::Green;
+  leds[1] = CRGB::Yellow;
+  leds[2] = CRGB::Red;
   FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < LED_NUM; i++ )
-  leds[i] = COLOUR_BASE;
+  fill_gradient_RGB( leds, 0, CRGB::COLOUR_BASE, LED_NUM - 1, CRGB::COLOUR_PEAK );
   FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < LED_NUM; i++ )
-  leds[i] = COLOUR_PEAK;
+  fill_solid( leds, LED_NUM, COLOUR_BASE );
   FastLED.show();
   delay( 1000 );
 
-  for ( i = 0; i < LED_NUM; i++ )
-  leds[i] = COLOUR_HOLD;
+  fill_solid( leds, LED_NUM, COLOUR_PEAK );
+  FastLED.show();
+  delay( 1000 );
+
+  fill_solid( leds, LED_NUM, COLOUR_HOLD );
   FastLED.show();
   delay( 1000 );
 
   // Wipe LED strip.
-  for ( i = 0; i < LED_NUM; i++ )
-  leds[i] = COLOUR_VOID;
+  fill_solid( leds, LED_NUM, COLOUR_VOID );
   FastLED.show();
   delay( 50 );
 
@@ -482,20 +481,15 @@ void LED_update( void )
       mean = LED_mean_level[channel][bin];
       peak = LED_peak_level[channel][bin];
 
-      for ( pos = 0; pos < mean; pos++ )
-      {        
-        leds[index + pos] = LED_colours[pos];
-      }
-      for ( pos = mean; pos < LED_COUNT; pos++ )
-      {
-        // Turn off blank LEDs.
-        leds[index + pos] = COLOUR_VOID;
-      }
+      fill_gradient_RGB( leds, index, COLOUR_BASE, 
+                               index + LED_COUNT - 1, COLOUR_PEAK );
+
+      fill_solid( &( leds[index+mean] ), LED_COUNT - mean, COLOUR_VOID );
+
       // Add peak level
       leds[index + peak] = COLOUR_HOLD;
     }
   }
-//  leds.show();
   FastLED.show();
   delay( 20 );
 }
@@ -537,4 +531,13 @@ void loop( void )
   LED_update();
 
 }
+
+// Set up palette for meter levels.
+DEFINE_GRADIENT_PALETTE( base_to_peak )
+{
+  0,               0, 255,  0,
+  LED_COUNT - 1, 255,   0,  0,
+  255,             0,   0,  0
+};
+
 

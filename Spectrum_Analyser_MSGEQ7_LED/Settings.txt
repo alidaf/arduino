@@ -87,7 +87,7 @@
     Other possibilities:
 
     It is possible to perform some kind of integration over time in order
-    to give a more studio-like response but will likely to impose a heavy
+    to give a more studio-like response but will likely impose a heavy
     penalty on processing time.
 
     Peak values with hold.

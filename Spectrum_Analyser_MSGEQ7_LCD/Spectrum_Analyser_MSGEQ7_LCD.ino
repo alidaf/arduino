@@ -33,7 +33,7 @@
     This setting toggles some debugging output via the serial port.
 */
 #define DEBUG        0 // Print debug info to serial console.
-#define MSGEQ7_PRINT 1 // Print MSGEQ7 data to serial console.
+#define MSGEQ7_PRINT 0 // Print MSGEQ7 data to serial console.
 
 //  MSGEQ7 --------------------------------------------------------------------
 
@@ -74,8 +74,6 @@
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
-#include <TimerOne.h>
-#include <Adafruit_NeoPixel.h>
 
 //  ===========================================================================
 //  Global variables.
@@ -357,7 +355,6 @@ void LCD_update( void )
       }
     }
   }
-//  display_ready = true;
 }
 
 //  ---------------------------------------------------------------------------
